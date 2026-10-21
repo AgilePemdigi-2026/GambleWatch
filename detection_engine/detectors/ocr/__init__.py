@@ -1,0 +1,1 @@
+"""DET-03: OCR Detection."""
