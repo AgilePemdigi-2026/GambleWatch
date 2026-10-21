@@ -2,7 +2,7 @@
 
 import re
 import unicodedata
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 import regex  # Using regex for Unicode support
 
 

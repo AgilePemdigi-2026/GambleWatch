@@ -1,12 +1,19 @@
 """Validate detection input with Indonesian error messages."""
 
 import re
-import magic
 from pathlib import Path
 from typing import Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from detection_engine.models.detection_models import DetectionInput
+
+# Try to import magic module, but handle if not available
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
+    magic = None
 
 
 class InputValidator:
@@ -91,14 +98,20 @@ class InputValidator:
         
         # Check magic bytes for format
         try:
-            mime = magic.Magic(mime=True)
-            mime_type = mime.from_buffer(image_bytes[:1024])
-            
-            if mime_type not in ['image/jpeg', 'image/png']:
-                return False, self.ERROR_MESSAGES["unsupported_image_format"]
+            if MAGIC_AVAILABLE and magic:
+                mime = magic.Magic(mime=True)
+                mime_type = mime.from_buffer(image_bytes[:1024])
+                
+                if mime_type not in ['image/jpeg', 'image/png']:
+                    return False, self.ERROR_MESSAGES["unsupported_image_format"]
+            else:
+                # Fallback to checking magic bytes manually
+                if not (image_bytes.startswith(b'\xff\xd8') or  # JPEG
+                        image_bytes.startswith(b'\x89PNG\r\n\x1a\n')):  # PNG
+                    return False, self.ERROR_MESSAGES["unsupported_image_format"]
                 
         except Exception:
-            # Fallback to checking magic bytes manually
+            # Final fallback to manual checking
             if not (image_bytes.startswith(b'\xff\xd8') or  # JPEG
                     image_bytes.startswith(b'\x89PNG\r\n\x1a\n')):  # PNG
                 return False, self.ERROR_MESSAGES["unsupported_image_format"]

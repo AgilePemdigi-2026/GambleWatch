@@ -55,7 +55,7 @@ class DetectionConfig(BaseModel):
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
-        return self.dict()
+        return self.model_dump()
 
 
 # Global configuration instance

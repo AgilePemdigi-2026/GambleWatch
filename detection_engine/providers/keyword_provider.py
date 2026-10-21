@@ -1,4 +1,4 @@
-    """Keyword provider with Firestore caching and local fallback."""
+"""Keyword provider with Firestore caching and local fallback."""
 
 import json
 import time
@@ -7,7 +7,6 @@ from pathlib import Path
 from dataclasses import dataclass
 import logging
 
-# Optional Firebase import - will fail gracefully if not available
 try:
     import firebase_admin
     from firebase_admin import firestore
@@ -15,6 +14,7 @@ try:
     FIREBASE_AVAILABLE = True
 except ImportError:
     FIREBASE_AVAILABLE = False
+    google_firestore = None
 
 
 @dataclass
@@ -81,7 +81,7 @@ class KeywordProvider:
         # Cache state
         self._keywords_cache: Optional[List[GamblingKeyword]] = None
         self._cache_timestamp: float = 0
-        self._firestore_client: Optional[google_firestore.Client] = None
+        self._firestore_client = None
         
         # Ensure data directory exists
         self.local_fallback_path.parent.mkdir(parents=True, exist_ok=True)
