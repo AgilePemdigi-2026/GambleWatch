@@ -31,7 +31,7 @@ export default function Home() {
 
         <nav className="flex flex-wrap justify-center gap-6 rounded-full bg-white px-8 py-4 text-xs font-black">
           <a href="/">HOME</a>
-          <a href="/gambling-analysis">GAMBLING ANALYSIS</a>
+          <a href="/form-gamblin-analysis">GAMBLING ANALYSIS</a>
           <a href="/feedback">FEEDBACK</a>
         </nav>
 
