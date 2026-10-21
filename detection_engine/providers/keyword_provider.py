@@ -1,4 +1,4 @@
-    """Keyword provider with Firestore caching and local fallback."""
+"""Keyword provider with Firestore caching and local fallback."""
 
 import json
 import time
