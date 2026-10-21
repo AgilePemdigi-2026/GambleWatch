@@ -124,7 +124,7 @@ class OCRDetector:
             self.logger.error(f"Error in OCR detection: {e}")
             return self._create_error_result(str(e), start_time)
     
-    def _load_image(self, image: Union[bytes, str, Path]) -> Optional[Image.Image]:
+    def _load_image(self, image: Union[bytes, str, Path]) -> Optional[Any]:
         """Load image from bytes, file path, or Path object."""
         try:
             if isinstance(image, bytes):
@@ -138,7 +138,7 @@ class OCRDetector:
             self.logger.error(f"Failed to load image: {e}")
             return None
     
-    def _preprocess_image(self, image: Image.Image) -> Image.Image:
+    def _preprocess_image(self, image: Any) -> Any:
         """Preprocess image for better OCR results."""
         try:
             # Convert to grayscale
@@ -171,7 +171,7 @@ class OCRDetector:
             self.logger.warning(f"Image preprocessing failed: {e}")
             return image  # Return original if preprocessing fails
     
-    def _perform_ocr(self, image: Image.Image, timeout: float) -> str:
+    def _perform_ocr(self, image: Any, timeout: float) -> str:
         """Perform OCR on image using Tesseract."""
         try:
             # Configure Tesseract parameters
