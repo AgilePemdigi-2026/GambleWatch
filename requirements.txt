@@ -23,9 +23,7 @@ firebase-admin>=6.0.0
 google-cloud-firestore>=2.11.0
 
 # Async and concurrency
-asyncio
 aiohttp>=3.8.0
-concurrent-futures
 
 # Testing
 pytest>=7.0.0

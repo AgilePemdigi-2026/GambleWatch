@@ -146,7 +146,9 @@ class DetectionPipeline:
             # Submit all tasks
             future_to_task = {}
             for task in tasks:
-                future = executor.submit(task['task'], *task['args'], task['timeout'])
+                future = executor.submit(
+                    task['task'], task['detector_type'], *task['args'], task['timeout']
+                )
                 future_to_task[future] = task
             
             # Collect results as they complete
@@ -170,25 +172,25 @@ class DetectionPipeline:
         
         return results
     
-    def _run_url_detection(self, url: str, timeout: float) -> DetectionResult:
+    def _run_url_detection(self, detector_type: DetectorType, url: str, timeout: float) -> DetectionResult:
         """Run URL pattern detection."""
         return self.url_detector.detect(url, timeout)
     
-    def _run_text_detection(self, text: str, timeout: float) -> DetectionResult:
+    def _run_text_detection(self, detector_type: DetectorType, text: str, timeout: float) -> DetectionResult:
         """Run text keyword detection."""
         return self.text_detector.detect(text, timeout=timeout)
     
-    def _run_ocr_detection(self, screenshot, timeout: float) -> DetectionResult:
+    def _run_ocr_detection(self, detector_type: DetectorType, screenshot, timeout: float) -> DetectionResult:
         """Run OCR detection."""
         return self.ocr_detector.detect(screenshot, timeout=timeout)
     
-    def _create_skipped_task(self, reason: str, timeout: float) -> DetectionResult:
+    def _create_skipped_task(self, detector_type: DetectorType, reason: str, timeout: float) -> DetectionResult:
         """Create a skipped result task."""
         # Simulate some processing time
         time.sleep(0.01)
         
         return DetectionResult(
-            detector=DetectorType.VISUAL_SIMILARITY,  # Will be overridden
+            detector=detector_type,
             status=DetectionStatus.SKIPPED,
             label="Skipped",
             score=0.0,
@@ -196,7 +198,7 @@ class DetectionPipeline:
             duration_ms=10,
         )
     
-    def _create_error_task(self, error_message: str, timeout: float) -> DetectionResult:
+    def _create_error_task(self, detector_type: DetectorType, error_message: str, timeout: float) -> DetectionResult:
         """Create an error result task."""
         # Simulate some processing time
         time.sleep(0.01)
@@ -204,7 +206,7 @@ class DetectionPipeline:
         from detection_engine.models.detection_models import DetectorError
         
         return DetectionResult(
-            detector=DetectorType.VISUAL_SIMILARITY,  # Will be overridden
+            detector=detector_type,
             status=DetectionStatus.FAILED,
             label="Error",
             score=0.0,
@@ -288,8 +290,9 @@ class DetectionPipeline:
                 summary['skipped'] += 1
         
         # Calculate overall risk (take highest score)
-        if pipeline_result.results:
-            max_score = max(r.score for r in pipeline_result.results if r.status == DetectionStatus.OK)
+        ok_scores = [r.score for r in pipeline_result.results if r.status == DetectionStatus.OK]
+        if ok_scores:
+            max_score = max(ok_scores)
             if max_score >= 0.7:
                 summary['overall_risk'] = 'high'
             elif max_score >= 0.4:

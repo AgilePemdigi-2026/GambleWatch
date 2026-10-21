@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from datetime import datetime
 
 
@@ -36,7 +36,8 @@ class DetectionInput(BaseModel):
         "media_urls": [],
     })
 
-    @validator('screenshot')
+    @field_validator('screenshot', mode='before')
+    @classmethod
     def validate_screenshot(cls, v):
         """Validate screenshot if provided."""
         if v is None:
@@ -52,11 +53,14 @@ class DetectionInput(BaseModel):
             raise ValueError("screenshot must be bytes or file path")
         return v
 
-    @validator('url')
+    @field_validator('url', mode='before')
+    @classmethod
     def validate_url_scheme(cls, v):
         """Only allow http/https URLs."""
-        if v and v.scheme not in ['http', 'https']:
-            raise ValueError("Only http and https URLs are allowed")
+        if v is not None:
+            url_str = str(v)
+            if not (url_str.startswith('http://') or url_str.startswith('https://')):
+                raise ValueError("Only http and https URLs are allowed")
         return v
 
 

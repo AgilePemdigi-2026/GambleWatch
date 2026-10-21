@@ -45,7 +45,7 @@ def detect(input_data: dict) -> dict:
         
         return {
             'request_id': result.request_id,
-            'results': [r.dict() for r in result.results],
+            'results': [r.model_dump() for r in result.results],
             'summary': summary,
             'label_breakdown': result.get_label_breakdown(),
         }
