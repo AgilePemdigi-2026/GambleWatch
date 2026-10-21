@@ -23,26 +23,33 @@ const features = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-[#482b19]">
+      {/* Navbar */}
       <header className="flex flex-col items-center justify-between gap-4 rounded-b-[26px] bg-[#f5efe6] px-6 py-5 md:flex-row">
-        <a href="/" className="flex items-center gap-3 text-2xl font-black">
+        <a
+          href="/"
+          className="flex items-center gap-3 text-2xl font-black"
+        >
           <span className="text-3xl">◉</span>
           GAMBLEWATCH
         </a>
 
         <nav className="flex flex-wrap justify-center gap-6 rounded-full bg-white px-8 py-4 text-xs font-black">
           <a href="/">HOME</a>
-          <a href="/gambling-analysis">GAMBLING ANALYSIS</a>
+          <a href="/form-gamblin-analysis">
+            GAMBLING ANALYSIS
+          </a>
           <a href="/feedback">FEEDBACK</a>
         </nav>
 
         <a
-          href="/my-analyses"
-          className="rounded-full bg-[#482b19] px-6 py-3 text-xs font-black text-white shadow-md"
+          href="/sign-in/sign-in-masyarakat"
+          className="rounded-full bg-[#482b19] px-6 py-3 text-xs font-black text-white shadow-md transition hover:bg-[#68432e]"
         >
           MY ANALYSES
         </a>
       </header>
 
+      {/* Hero Section */}
       <section className="px-5 pb-10 pt-16 md:pt-14">
         <div className="mx-auto max-w-6xl text-center">
           <h1 className="text-4xl font-normal leading-tight md:text-6xl">
@@ -60,17 +67,18 @@ export default function Home() {
             online ilegal menggunakan teknologi deteksi multi-modal.
           </p>
 
+          {/* Action Buttons */}
           <div className="mt-8 flex flex-wrap justify-center gap-5">
             <a
               href="/sign-up"
-              className="rounded-full bg-[#482b19] px-10 py-4 text-xs font-black text-white shadow-lg"
+              className="rounded-full bg-[#482b19] px-10 py-4 text-xs font-black text-white shadow-lg transition hover:bg-[#68432e]"
             >
               ♙ &nbsp; SIGN UP
             </a>
 
             <a
-              href="/sign-in"
-              className="rounded-full bg-white px-10 py-4 text-xs font-black shadow-md"
+              href="/sign-in/sign-in-masyarakat"
+              className="rounded-full bg-white px-10 py-4 text-xs font-black shadow-md transition hover:bg-[#f5efe6]"
             >
               ⇥ &nbsp; SIGN IN
             </a>
@@ -78,6 +86,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Features Section */}
       <section id="features" className="px-5 pb-10 pt-8">
         <div className="mb-14 text-center">
           <h2 className="inline-block rounded-full bg-[#482b19] px-8 py-2 text-3xl font-black text-white shadow-md">
@@ -113,6 +122,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="rounded-t-[40px] bg-[#f5efe6] px-6 py-7">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 text-sm text-[#786b62] md:flex-row md:items-center">
           <p>
@@ -122,7 +132,10 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-6">
             <a href="/about">About Web</a>
             <a href="/privacy">Privacy Policy</a>
-            <a href="/contact" className="rounded-full bg-white px-5 py-3">
+            <a
+              href="/contact"
+              className="rounded-full bg-white px-5 py-3"
+            >
               Contact Support
             </a>
           </div>

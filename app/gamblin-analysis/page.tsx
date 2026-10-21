@@ -39,7 +39,7 @@ export default function GamblingAnalysisPage() {
     setMessage("");
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!url.trim() && !file) {
@@ -61,35 +61,9 @@ export default function GamblingAnalysisPage() {
       }
     }
 
-    // Show analyzing message
-    setMessage("🔍 Menganalisis website...");
-
-    try {
-      // Dynamically import our detection module
-      const detection = await import('@/lib/detection');
-
-      if (url.trim()) {
-        // DET-01: URL Pattern Detection
-        const urlResult = detection.analyzeURL(url.trim());
-
-        if (urlResult.isGambling) {
-          setMessage(`❌ DETECTED: ${urlResult.details} (${urlResult.confidence}% confidence)`);
-        } else {
-          setMessage(`✅ SAFE: ${urlResult.details} (${urlResult.confidence}% confidence)`);
-        }
-
-        // Show more details in console for debugging
-        console.log('URL Analysis Result:', urlResult);
-
-      } else if (file) {
-        // TODO: DET-02 & DET-03: OCR Detection
-        setMessage("📷 OCR detection (DET-02 & DET-03) coming soon. URL analysis is available now.");
-      }
-
-    } catch (error) {
-      console.error('Error in analysis:', error);
-      setMessage("⚠️ Error in analysis system. Please try again.");
-    }
+    setMessage(
+      "Input berhasil diperiksa. Modul deteksi belum aktif; hasil analisis belum tersedia."
+    );
   }
 
   return (
