@@ -107,14 +107,18 @@ export async function POST(request: Request) {
 
 ### Test yang berfungsi:
 ```bash
+# Semua test sekarang ada di folder tests/
+cd tests
+
 python test_simple.py       # Test DET-01 & DET-04
-python test_all_detectors.py # Test semua detectors
+python test_all_detectors.py # Test semua detectors  
 python test_final.py        # Test komprehensif
 ```
 
 ### Test setelah OCR terinstal:
 ```bash
-python tests/test_ocr.py    # Test OCR functionality
+cd tests
+python check_ocr_deps.py    # Cek dependencies OCR
 python test_all_detectors.py # Sekarang termasuk OCR
 ```
 
@@ -175,11 +179,17 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 
 ### Testing Contact:
 ```bash
+# Semua test di folder tests/
+cd tests
+
 # Untuk test cepat:
 python quick_test.py
 
 # Untuk test lengkap:
 python test_final.py
+
+# Cek dokumentasi test:
+cat README.md
 ```
 
 ---
