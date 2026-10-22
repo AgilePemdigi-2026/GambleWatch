@@ -1,0 +1,299 @@
+[
+  {
+    "term": "judi",
+    "category": "gambling",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "taruhan",
+    "category": "betting",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "togel",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "slot",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "betting",
+    "category": "betting",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "bandar",
+    "category": "agent",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "kasino",
+    "category": "casino",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "poker",
+    "category": "card_game",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "domino",
+    "category": "card_game",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "ceme",
+    "category": "card_game",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "bola",
+    "category": "sports",
+    "weight": 0.5,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "sabung",
+    "category": "sports",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "ayam",
+    "category": "sports",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "maxwin",
+    "category": "promotion",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "gacor",
+    "category": "promotion",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "jackpot",
+    "category": "promotion",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "sbobet",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "ibcbet",
+    "category": "brand",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "maxbet",
+    "category": "brand",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "ligaciputra",
+    "category": "brand",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "casino",
+    "category": "casino",
+    "weight": 0.9,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "gamble",
+    "category": "gambling",
+    "weight": 0.8,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "bet",
+    "category": "betting",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "poker",
+    "category": "card_game",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "lottery",
+    "category": "lottery",
+    "weight": 0.8,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "roulette",
+    "category": "casino",
+    "weight": 0.8,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "blackjack",
+    "category": "card_game",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "baccarat",
+    "category": "card_game",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "sportsbook",
+    "category": "sports",
+    "weight": 0.8,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "wager",
+    "category": "betting",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "odds",
+    "category": "betting",
+    "weight": 0.6,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "stakes",
+    "category": "betting",
+    "weight": 0.6,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "slot",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "en",
+    "variations": [],
+    "aliases": []
+  }
+]
