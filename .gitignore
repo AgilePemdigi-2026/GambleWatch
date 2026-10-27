@@ -68,3 +68,8 @@ out/
 .env*.local
 next-env.d.ts
 *.tsbuildinfo
+
+# Editor / tool state
+.kiro/settings/*.lock
+.pytest_cache/
+.coverage

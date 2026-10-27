@@ -116,6 +116,23 @@ python test_detection.py
 
 ## Project Structure
 
+Repository layout:
+
+```
+app/                 # Next.js frontend (App Router pages)
+  components/        # Shared UI (AuthForm, ComingSoon)
+lib/                 # Frontend helpers (firebase.ts, detection.ts = DET-01 port)
+public/              # Static assets
+detection_engine/    # Python detection engine (see below)
+data/                # keywords.json and other data files
+tests/               # pytest suite (run: pytest)
+scripts/             # Setup, dependency checks, evaluation, index building
+  demos/             # Print-only demo scripts (not part of the test suite)
+docs/                # Deployment guide, Tesseract install notes
+```
+
+Detection engine:
+
 ```
 detection_engine/
 ├── __init__.py              # Main entry point
