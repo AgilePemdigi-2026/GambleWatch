@@ -1,4 +1,4 @@
-"""DET-01: URL Pattern Detection with weighted rule engine."""
+﻿"""DET-01: URL Pattern Detection with weighted rule engine."""
 
 import re
 import time
@@ -28,14 +28,14 @@ class URLPatternDetector:
         ('togel', 0.9, 'lottery'),
         ('slot', 0.7, 'slot'),
         ('betting', 0.8, 'betting'),
-        ('bandar', 0.8, 'agent'),
+        ('bandar', 0.5, 'agent'),
         ('kasino', 0.9, 'casino'),
         ('poker', 0.7, 'card_game'),
-        ('domino', 0.6, 'card_game'),
+        ('domino', 0.4, 'card_game'),
         ('ceme', 0.8, 'card_game'),
         ('bola', 0.5, 'sports'),
         ('sabung', 0.7, 'sports'),
-        ('ayam', 0.6, 'sports'),
+        ('ayam', 0.3, 'sports'),
         ('maxwin', 0.7, 'promotion'),
         ('gacor', 0.6, 'promotion'),
         ('jackpot', 0.8, 'promotion'),
@@ -133,7 +133,7 @@ class URLPatternDetector:
             matched_rules = self._apply_rules(parsed)
             
             # Calculate score
-            score = self._calculate_score(matched_rules)
+            score = self._calculate_score(matched_rules, self._is_trusted_tld(parsed))
             
             # Determine label
             label = "High Risk Pattern" if score >= self.high_risk_threshold else "Normal"
@@ -269,8 +269,12 @@ class URLPatternDetector:
                     'category': category,
                 })
         
-        # Check English keywords
+        # Check English keywords (skip ones already counted as Indonesian,
+        # e.g. "slot" and "poker" appear in both lists)
+        id_keywords = {k for k, _, _ in self.GAMBLING_KEYWORDS_ID}
         for keyword, weight, category in self.GAMBLING_KEYWORDS_EN:
+            if keyword in id_keywords:
+                continue
             if keyword in domain:
                 matched.append({
                     'rule': 'english_keyword_domain',
@@ -281,7 +285,11 @@ class URLPatternDetector:
         
         # Check subdomain keywords
         if subdomain:
+            seen = set()
             for keyword, weight, category in self.GAMBLING_KEYWORDS_ID + self.GAMBLING_KEYWORDS_EN:
+                if keyword in seen:
+                    continue
+                seen.add(keyword)
                 if keyword in subdomain and len(subdomain) > 3:
                     matched.append({
                         'rule': 'keyword_subdomain',
@@ -297,7 +305,11 @@ class URLPatternDetector:
         matched = []
         path_query = parsed['path'] + parsed['query'] + parsed['fragment']
         
+        seen = set()
         for keyword, weight, category in self.GAMBLING_KEYWORDS_ID + self.GAMBLING_KEYWORDS_EN:
+            if keyword in seen:
+                continue
+            seen.add(keyword)
             if keyword in path_query:
                 matched.append({
                     'rule': 'keyword_path_query',
@@ -404,7 +416,7 @@ class URLPatternDetector:
                 entropy -= p * math.log2(p)
             
             # High entropy suggests random string
-            if entropy > 3.5:
+            if entropy > 4.0:
                 matched.append({
                     'rule': 'high_entropy',
                     'weight': 0.1,
@@ -458,19 +470,31 @@ class URLPatternDetector:
         
         return matched
     
-    def _calculate_score(self, matched_rules: List[Dict[str, Any]]) -> float:
+    def _calculate_score(self, matched_rules: List[Dict[str, Any]],
+                         trusted_tld: bool = False) -> float:
         """Calculate final score from matched rules."""
         if not matched_rules:
             return 0.0
         
-        # Sum weights with cap at 1.0
-        total_weight = sum(rule['weight'] for rule in matched_rules)
-        
-        # Apply sigmoid-like function for final score
-        score = 1 / (1 + math.exp(-2 * (total_weight - 2)))
-        
-        return min(score, 1.0)
-    
+        # Noisy-OR: each rule is independent evidence, so one strong keyword
+        # (e.g. "togel" in the domain) is enough on its own, and more rules
+        # push the score toward 1.0 without ever exceeding it.
+        remaining = 1.0
+        for rule in matched_rules:
+            remaining *= 1.0 - min(max(rule['weight'], 0.0), 0.95)
+
+        score = 1.0 - remaining
+        if trusted_tld:
+            score *= 0.3
+        return score
+
+    # Government/education domains are very unlikely to be gambling sites
+    TRUSTED_SUFFIXES = ('.go.id', '.ac.id', '.sch.id', '.mil.id', '.edu', '.gov')
+
+    def _is_trusted_tld(self, parsed: Dict[str, Any]) -> bool:
+        host = parsed['netloc'].split(':')[0]
+        return host.endswith(self.TRUSTED_SUFFIXES)
+
     def _create_evidence(self, matched_rules: List[Dict[str, Any]], 
                          parsed: Dict[str, Any], score: float) -> Dict[str, Any]:
         """Create evidence dictionary."""
