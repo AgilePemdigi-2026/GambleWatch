@@ -1,14 +1,51 @@
-
 'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 export default function SignInMasyarakatPage() {
   const [emailNik, setEmailNik] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
+
+    console.log('1. Memulai proses login...');
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailNik,
+        password: password,
+      });
+
+      console.log('2. Respon dari Supabase:', { data, error });
+
+      if (error) {
+        setErrorMsg(error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        console.log('3. Login berhasil, mencoba redirect...');
+        window.location.href = '/form-gamblin-analysis';
+      } else {
+        setErrorMsg('User tidak ditemukan setelah autentikasi.');
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error('Error saat login:', err);
+      setErrorMsg(err?.message || 'Terjadi kesalahan tidak terduga.');
+      setLoading(false);
+    }
+  };
 
   return (
     <main className="flex min-h-screen flex-col bg-white text-[#482b19]">
@@ -97,11 +134,16 @@ export default function SignInMasyarakatPage() {
 
             <form
               className="mt-8 space-y-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                alert('Form siap dihubungkan ke Firebase Authentication.');
-              }}
+              onSubmit={handleSignIn}
+              suppressHydrationWarning
             >
+              {/* Notifikasi Pesan Error */}
+              {errorMsg && (
+                <div className="rounded-lg bg-red-100 p-3 text-xs font-bold text-red-700">
+                  {errorMsg}
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="emailNik"
@@ -113,12 +155,13 @@ export default function SignInMasyarakatPage() {
                   <span className="text-xl text-[#a63c0b]">♙</span>
                   <input
                     id="emailNik"
-                    type="text"
+                    type="email"
                     required
                     value={emailNik}
                     onChange={(e) => setEmailNik(e.target.value)}
-                    placeholder="Masukkan Email atau NIK"
+                    placeholder="Masukkan Email kamu"
                     className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-[#96877b]"
+                    suppressHydrationWarning
                   />
                 </div>
               </div>
@@ -149,11 +192,13 @@ export default function SignInMasyarakatPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Masukkan Kata Sandi"
                     className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-[#96877b]"
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="text-xs text-[#786b61]"
+                    suppressHydrationWarning
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -162,9 +207,11 @@ export default function SignInMasyarakatPage() {
 
               <button
                 type="submit"
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[#482b19] py-3.5 text-xs font-black tracking-wider text-white transition hover:bg-[#68432e]"
+                disabled={loading}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[#482b19] py-3.5 text-xs font-black tracking-wider text-white transition hover:bg-[#68432e] disabled:opacity-50"
+                suppressHydrationWarning
               >
-                AUTHENTICATE <span className="text-lg">→</span>
+                {loading ? 'AUTHENTICATING...' : 'AUTHENTICATE'} <span className="text-lg">→</span>
               </button>
             </form>
 

@@ -1,13 +1,54 @@
-
 'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 
 export default function SignInAdminPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const router = useRouter();
+
+  const handleAdminSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
+
+    // 1. Autentikasi ke Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      setErrorMsg(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Cek apakah user memiliki role 'admin' di app_metadata
+    const userRole = data.user?.app_metadata?.role;
+
+    if (userRole !== 'admin') {
+      // Logout otomatis jika masyarakat biasa mencoba login dari portal Admin
+      await supabase.auth.signOut();
+      setErrorMsg('Akses ditolak! Akun ini bukan akun Admin.');
+      setLoading(false);
+      return;
+    }
+
+    // 3. Jika terverifikasi Admin, redirect ke dashboard
+    if (data.user) {
+      router.push('/'); // Ubah route ini ke '/admin-dashboard' atau halaman admin tujuanmu
+    }
+
+    setLoading(false);
+  };
 
   return (
     <main className="flex min-h-screen flex-col bg-white text-[#482b19]">
@@ -44,21 +85,21 @@ export default function SignInAdminPage() {
             <div className="mb-3 text-4xl text-black">⬟</div>
 
             <h1 className="text-3xl font-bold">
-              Portal Akses
+              Portal Akses Admin
             </h1>
 
             <div className="mt-1 space-y-4">
               <div className="flex items-center gap-3 rounded-full border border-[#a99a8c] bg-white px-4 py-3">
                 <span className="text-xl text-[#a63c0b]">♧</span>
                 <span className="text-xs text-[#705e51]">
-                  Verifikasi
+                  Verifikasi Otoritas
                 </span>
               </div>
 
               <div className="flex items-center gap-3 rounded-full border border-[#a99a8c] bg-white px-4 py-3">
                 <span className="text-xl text-[#a63c0b]">▤</span>
                 <span className="text-xs text-[#705e51]">
-                  Analisis Data Real Time
+                  Manajemen & Analisis Laporan
                 </span>
               </div>
             </div>
@@ -71,7 +112,7 @@ export default function SignInAdminPage() {
             </h2>
 
             <p className="mt-2 text-sm text-[#786b61]">
-              Pilih jenis akses anda untuk melanjutkan
+              Masuk dengan akun administrator Anda
             </p>
 
             {/* Switch Account */}
@@ -93,20 +134,23 @@ export default function SignInAdminPage() {
 
             <form
               className="mt-8 space-y-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                alert(
-                  'Tampilan login admin berhasil. Autentikasi admin belum dihubungkan.'
-                );
-              }}
+              onSubmit={handleAdminSignIn}
+              suppressHydrationWarning
             >
+              {/* Notifikasi Pesan Error */}
+              {errorMsg && (
+                <div className="rounded-lg bg-red-100 p-3 text-xs text-red-700">
+                  {errorMsg}
+                </div>
+              )}
+
               {/* Email */}
               <div>
                 <label
                   htmlFor="email"
                   className="mb-2 block text-xs font-black tracking-wider"
                 >
-                  EMAIL
+                  EMAIL ADMIN
                 </label>
 
                 <div className="flex items-center gap-3 rounded-full border border-[#a99a8c] bg-white px-4">
@@ -118,9 +162,10 @@ export default function SignInAdminPage() {
                     onChange={(event) =>
                       setEmail(event.target.value)
                     }
-                    placeholder="Masukkan Email"
+                    placeholder="Masukkan Email Admin"
                     required
                     className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-[#96877b]"
+                    suppressHydrationWarning
                   />
                 </div>
               </div>
@@ -146,6 +191,7 @@ export default function SignInAdminPage() {
                     placeholder="Masukkan Kata Sandi"
                     required
                     className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-[#96877b]"
+                    suppressHydrationWarning
                   />
 
                   <button
@@ -154,6 +200,7 @@ export default function SignInAdminPage() {
                       setShowPassword(!showPassword)
                     }
                     className="text-xs text-[#786b61]"
+                    suppressHydrationWarning
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -163,9 +210,11 @@ export default function SignInAdminPage() {
               {/* Submit */}
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#482b19] py-3.5 text-xs font-black text-white transition hover:bg-[#68432e]"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#482b19] py-3.5 text-xs font-black text-white transition hover:bg-[#68432e] disabled:opacity-50"
+                suppressHydrationWarning
               >
-                AUTHENTICATE <span className="text-lg">→</span>
+                {loading ? 'AUTHENTICATING...' : 'AUTHENTICATE'} <span className="text-lg">→</span>
               </button>
             </form>
           </div>
