@@ -99,8 +99,8 @@ print(f"Overall Risk: {result['summary']['overall_risk']}")
 ### Individual Detectors
 
 ```python
-from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
 
 # URL Pattern Detection
 url_detector = URLPatternDetector()
@@ -136,39 +136,28 @@ scripts/             # Setup, dependency checks, evaluation, index building
 docs/                # Deployment guide, Tesseract install notes
 ```
 
-Detection engine:
+Detection engine (one numbered folder per detector, matching the backlog IDs):
 
 ```
 detection_engine/
-├── __init__.py              # Main entry point
-├── models/
-│   ├── __init__.py
-│   └── detection_models.py  # Pydantic models (DetectionInput, DetectionResult, etc.)
-├── config/
-│   ├── __init__.py
-│   └── detection_config.py  # Timeouts, thresholds, configuration
-├── validation/
-│   ├── __init__.py
-│   └── input_validator.py   # Input validation with Indonesian error messages
-├── text/
-│   ├── __init__.py
-│   └── text_normalizer.py   # Text normalization for DET-04
-├── providers/
-│   ├── __init__.py
-│   └── keyword_provider.py  # Keyword provider with Firestore + local cache
+├── pipeline.py                     # Runs all detectors in parallel, builds the summary
+│                                   #   (combined score + Rendah/Sedang/Tinggi)
+├── __init__.py                     # detect() entry point
 ├── detectors/
-│   ├── url_pattern/         # DET-01
-│   │   ├── __init__.py
+│   ├── det01_url_pattern/          # DET-01  URL pattern rules
 │   │   └── url_pattern_detector.py
-│   ├── text_keyword/        # DET-04
-│   │   ├── __init__.py
-│   │   └── text_keyword_detector.py
-│   ├── ocr/                 # DET-03
-│   │   ├── __init__.py
+│   ├── det02_visual_similarity/    # DET-02  Screenshot vs. reference index
+│   │   ├── visual_detector.py
+│   │   └── reference_index.py      #         Index build/load (.npz) + optional CLIP
+│   ├── det03_ocr/                  # DET-03  Tesseract OCR, scored by DET-04
 │   │   └── ocr_detector.py
-│   └── visual/              # DET-02 (pending)
-│       └── __init__.py
-└── pipeline.py              # Orchestrates all detectors
+│   └── det04_text_keyword/         # DET-04  Keyword matching on page text
+│       ├── text_keyword_detector.py
+│       ├── text_normalizer.py      #         Leetspeak / homoglyph / spaced-letter cleanup
+│       └── keyword_provider.py     #         Firestore + local keywords.json, 15 min cache
+├── models/detection_models.py      # DetectionInput, DetectionResult, PipelineResult
+├── config/detection_config.py      # Timeouts, thresholds, indication levels
+└── validation/input_validator.py   # Input validation (Indonesian error messages)
 ```
 
 ## Configuration
@@ -247,7 +236,7 @@ keyword_local_fallback_path = "data/keywords.json"
 ### Adding Custom Keywords
 
 ```python
-from detection_engine.providers.keyword_provider import KeywordProvider, GamblingKeyword
+from detection_engine.detectors.det04_text_keyword.keyword_provider import KeywordProvider, GamblingKeyword
 
 provider = KeywordProvider()
 
@@ -264,7 +253,7 @@ provider.add_keyword(keyword)
 
 ### Extending URL Patterns
 
-Edit `detection_engine/detectors/url_pattern/url_pattern_detector.py`:
+Edit `detection_engine/detectors/det01_url_pattern/url_pattern_detector.py`:
 
 ```python
 # Add to GAMBLING_TLDS list

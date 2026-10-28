@@ -73,7 +73,7 @@ print("\n2️⃣ Testing DET-04: Text/Keyword Detection (Isolated)")
 print("-" * 50)
 
 # Import just what we need for DET-04
-from detection_engine.text.text_normalizer import TextNormalizer
+from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
 
 # Simple keyword matcher
 class SimpleTextDetector:

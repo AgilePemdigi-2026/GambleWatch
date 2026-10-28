@@ -7,7 +7,7 @@ print("=" * 50)
 # Test DET-01: URL Pattern Detection
 print("\n🔍 Testing DET-01: URL Pattern Detection")
 try:
-    from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
+    from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
     
     detector = URLPatternDetector()
     
@@ -30,7 +30,7 @@ except Exception as e:
 # Test DET-04: Text/Keyword Detection
 print("\n🔍 Testing DET-04: Text/Keyword Detection")
 try:
-    from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+    from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
     
     detector = TextKeywordDetector()
     

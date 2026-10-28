@@ -8,7 +8,7 @@ from pathlib import Path
 from detection_engine.models.detection_models import (
     DetectionStatus, DetectorType, DetectionResult, DetectorError
 )
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
 
 # Optional imports for OCR
 try:

@@ -11,8 +11,8 @@ from rapidfuzz import fuzz, process
 from detection_engine.models.detection_models import (
     DetectionStatus, DetectorType, DetectionResult, DetectorError
 )
-from detection_engine.text.text_normalizer import TextNormalizer
-from detection_engine.providers.keyword_provider import KeywordProvider, GamblingKeyword
+from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
+from detection_engine.detectors.det04_text_keyword.keyword_provider import KeywordProvider, GamblingKeyword
 
 
 class TextKeywordDetector:

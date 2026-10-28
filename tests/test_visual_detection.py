@@ -5,7 +5,7 @@ from io import BytesIO
 import pytest
 from PIL import Image, ImageDraw
 
-from detection_engine.detectors.visual import ReferenceIndex, VisualSimilarityDetector
+from detection_engine.detectors.det02_visual_similarity import ReferenceIndex, VisualSimilarityDetector
 from detection_engine.models.detection_models import DetectionStatus
 
 

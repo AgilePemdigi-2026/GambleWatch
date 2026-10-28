@@ -93,7 +93,7 @@ print("-" * 60)
 
 if all_ok:
     try:
-        from detection_engine.detectors.ocr.ocr_detector import OCRDetector
+        from detection_engine.detectors.det03_ocr.ocr_detector import OCRDetector
         
         detector = OCRDetector()
         print("✅ OCRDetector initialized successfully")
@@ -107,7 +107,7 @@ if all_ok:
         print("\n📝 To test with an image:")
         print("   1. Create a test image with text")
         print("   2. Run: detector.detect_from_file('test_image.jpg')")
-        print("   3. Or: python -m detection_engine.detectors.ocr.ocr_detector")
+        print("   3. Or: python -m detection_engine.detectors.det03_ocr.ocr_detector")
         
     except Exception as e:
         print(f"❌ OCR detector initialization failed: {e}")

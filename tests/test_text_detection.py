@@ -2,8 +2,8 @@
 
 import pytest
 
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
-from detection_engine.text.text_normalizer import TextNormalizer
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
 
 
 @pytest.fixture(scope="module")

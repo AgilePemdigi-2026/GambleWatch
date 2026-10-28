@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from detection_engine.config.detection_config import config  # noqa: E402
-from detection_engine.detectors.visual.reference_index import (  # noqa: E402
+from detection_engine.detectors.det02_visual_similarity.reference_index import (  # noqa: E402
     ClipEmbedder, ReferenceIndex,
 )
 

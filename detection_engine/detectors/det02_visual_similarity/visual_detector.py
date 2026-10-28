@@ -9,7 +9,7 @@ from typing import Any, Optional, Union
 import numpy as np
 
 from detection_engine.config.detection_config import config
-from detection_engine.detectors.visual.reference_index import (
+from detection_engine.detectors.det02_visual_similarity.reference_index import (
     HASH_AVAILABLE, ClipEmbedder, ReferenceIndex, compute_phash_bits,
 )
 from detection_engine.models.detection_models import (

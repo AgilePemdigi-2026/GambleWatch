@@ -58,14 +58,14 @@ except ImportError as e:
     all_ok = False
 
 try:
-    from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
+    from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
     print("✓ URLPatternDetector: OK")
 except ImportError as e:
     print(f"✗ URLPatternDetector: {e}")
     all_ok = False
 
 try:
-    from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+    from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
     print("✓ TextKeywordDetector: OK")
 except ImportError as e:
     print(f"✗ TextKeywordDetector: {e}")

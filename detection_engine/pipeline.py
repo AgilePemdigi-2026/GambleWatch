@@ -11,10 +11,10 @@ from detection_engine.models.detection_models import (
     DetectionInput, PipelineResult, DetectionResult, DetectionStatus, DetectorType
 )
 from detection_engine.config.detection_config import config
-from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
-from detection_engine.detectors.ocr.ocr_detector import OCRDetector
-from detection_engine.detectors.visual.visual_detector import VisualSimilarityDetector
+from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det03_ocr.ocr_detector import OCRDetector
+from detection_engine.detectors.det02_visual_similarity.visual_detector import VisualSimilarityDetector
 
 
 # Indication levels from the PRD, keyed by the English risk name used in code

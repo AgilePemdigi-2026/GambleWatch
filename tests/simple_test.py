@@ -31,8 +31,8 @@ def test_basic():
     files = [
         "detection_engine/__init__.py",
         "detection_engine/models/detection_models.py",
-        "detection_engine/detectors/url_pattern/url_pattern_detector.py",
-        "detection_engine/detectors/text_keyword/text_keyword_detector.py",
+        "detection_engine/detectors/det01_url_pattern/url_pattern_detector.py",
+        "detection_engine/detectors/det04_text_keyword/text_keyword_detector.py",
         "README.md",
         "requirements.txt"
     ]
