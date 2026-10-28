@@ -47,7 +47,7 @@
   {
     "term": "bandar",
     "category": "agent",
-    "weight": 0.5,
+    "weight": 0.3,
     "active": true,
     "language": "id",
     "variations": [],

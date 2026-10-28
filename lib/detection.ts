@@ -1,4 +1,4 @@
-// DET-01 (URL pattern detection), ported from
+﻿// DET-01 (URL pattern detection), ported from
 // detection_engine/detectors/det01_url_pattern/url_pattern_detector.py.
 // Keep the keyword lists, weights and scoring in sync with that file.
 
@@ -26,7 +26,7 @@ const TRUSTED_SUFFIXES = [".go.id", ".ac.id", ".sch.id", ".mil.id", ".edu", ".go
 
 const KEYWORDS_ID: Keyword[] = [
   ["judi", 0.9], ["taruhan", 0.8], ["togel", 0.9], ["slot", 0.7],
-  ["betting", 0.8], ["bandar", 0.5], ["kasino", 0.9], ["poker", 0.7],
+  ["betting", 0.8], ["bandar", 0.3], ["kasino", 0.9], ["poker", 0.7],
   ["domino", 0.4], ["ceme", 0.8], ["bola", 0.5], ["sabung", 0.7],
   ["ayam", 0.3], ["maxwin", 0.7], ["gacor", 0.6], ["jackpot", 0.8],
   ["sbobet", 0.9], ["ibcbet", 0.8], ["maxbet", 0.8], ["ligaciputra", 0.7],

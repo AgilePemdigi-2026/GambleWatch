@@ -95,7 +95,7 @@ class TextKeywordDetector:
 
         Gambling pages mix Indonesian and English ("slot gacor", "free spin"),
         so every active keyword is used regardless of `language`. Caching is
-        left to the provider, which refreshes from Firestore every
+        left to the provider, which refreshes from Supabase every
         `cache_ttl_minutes` (15 by default, per the PRD).
         """
         by_term: Dict[str, GamblingKeyword] = {}

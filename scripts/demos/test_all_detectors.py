@@ -265,6 +265,6 @@ print("1. Install OCR dependencies for DET-03: pip install pytesseract pillow op
 print("2. Install Tesseract OCR from: https://github.com/UB-Mannheim/tesseract/wiki")
 print("3. For DET-02: pip install torch transformers")
 print("4. Collect reference images for visual similarity detection")
-print("5. Add Firebase Admin SDK for production keyword provider")
+print("5. Configure Supabase (SUPABASE_URL/SUPABASE_KEY) for production keyword provider")
 print("\n✅ All core detectors (DET-01, DET-04, Pipeline) are working!")
 print("✅ Ready for integration with your Next.js application!")
