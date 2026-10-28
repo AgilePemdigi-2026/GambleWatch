@@ -8,6 +8,8 @@ from pathlib import Path
 from dataclasses import dataclass
 import logging
 
+from detection_engine.config.env import load_env_files
+
 try:
     from supabase import create_client, Client
     SUPABASE_AVAILABLE = True
@@ -94,6 +96,7 @@ class KeywordProvider:
             self.logger.warning("Supabase client not installed. Using local keywords only.")
             return
 
+        load_env_files()  # reads .env.local / .env if present
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_KEY")
         if not url or not key:
