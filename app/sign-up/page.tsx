@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AuthForm from "../components/AuthForm";
 
 export default function SignUpPage() {
@@ -6,12 +7,13 @@ export default function SignUpPage() {
       mode="sign-up"
       title="Buat Akun"
       subtitle="Daftar untuk mulai menganalisis dan melaporkan situs judi online"
+      defaultRole="masyarakat"
       footer={
         <>
           Sudah punya akun?{" "}
-          <a href="/sign-in" className="underline">
+          <Link href="/sign-in/sign-in-masyarakat" className="underline">
             Masuk di sini
-          </a>
+          </Link>
         </>
       }
     />
