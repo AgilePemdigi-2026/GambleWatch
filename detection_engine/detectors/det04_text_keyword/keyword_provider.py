@@ -1,4 +1,4 @@
-"""Keyword provider with Supabase caching and local fallback."""
+﻿"""Keyword provider with Supabase caching and local fallback."""
 
 import json
 import os
@@ -39,7 +39,7 @@ class KeywordProvider:
         {"term": "togel", "category": "lottery", "weight": 0.9, "active": True, "language": "id"},
         {"term": "slot", "category": "slot", "weight": 0.7, "active": True, "language": "id"},
         {"term": "betting", "category": "betting", "weight": 0.8, "active": True, "language": "id"},
-        {"term": "bandar", "category": "agent", "weight": 0.8, "active": True, "language": "id"},
+        {"term": "bandar", "category": "agent", "weight": 0.3, "active": True, "language": "id"},
         {"term": "kasino", "category": "casino", "weight": 0.9, "active": True, "language": "id"},
         {"term": "poker", "category": "card_game", "weight": 0.7, "active": True, "language": "id"},
         {"term": "domino", "category": "card_game", "weight": 0.6, "active": True, "language": "id"},

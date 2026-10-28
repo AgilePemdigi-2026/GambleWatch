@@ -28,7 +28,7 @@ class URLPatternDetector:
         ('togel', 0.9, 'lottery'),
         ('slot', 0.7, 'slot'),
         ('betting', 0.8, 'betting'),
-        ('bandar', 0.5, 'agent'),
+        ('bandar', 0.3, 'agent'),  # also a place name (Bandar Lampung) and "airport"
         ('kasino', 0.9, 'casino'),
         ('poker', 0.7, 'card_game'),
         ('domino', 0.4, 'card_game'),
@@ -253,11 +253,25 @@ class URLPatternDetector:
         
         return matched
     
+    # Ordinary words that merely contain a gambling keyword ("alphabet" has
+    # "bet"). They are blanked out before keyword matching. Domains glue words
+    # together ("togelonline", "dewabet"), so keywords cannot be matched as
+    # whole words here; this list covers the common false friends instead.
+    BENIGN_WORDS = (
+        'alphabetical', 'alphabet', 'between', 'betterment', 'better',
+        'bethesda', 'bethany', 'betsy', 'betty', 'beta', 'abet',
+    )
+
+    def _strip_benign(self, text: str) -> str:
+        for word in self.BENIGN_WORDS:
+            text = text.replace(word, ' ')
+        return text
+
     def _check_domain_keywords(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Check for gambling keywords in domain."""
         matched = []
-        domain = parsed['netloc']
-        subdomain = parsed['subdomain']
+        domain = self._strip_benign(parsed['netloc'])
+        subdomain = self._strip_benign(parsed['subdomain'])
         
         # Check Indonesian keywords
         for keyword, weight, category in self.GAMBLING_KEYWORDS_ID:
@@ -303,7 +317,8 @@ class URLPatternDetector:
     def _check_path_keywords(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Check for gambling keywords in path and query."""
         matched = []
-        path_query = parsed['path'] + parsed['query'] + parsed['fragment']
+        path_query = self._strip_benign(
+            parsed['path'] + parsed['query'] + parsed['fragment'])
         
         seen = set()
         for keyword, weight, category in self.GAMBLING_KEYWORDS_ID + self.GAMBLING_KEYWORDS_EN:

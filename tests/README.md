@@ -9,6 +9,7 @@ pytest
 | File | Isi |
 |---|---|
 | `test_url_pattern.py` | DET-01: URL judi harus "High Risk", URL sah harus "Normal" |
+| `test_sample_cases.py` | **Contoh kasus berbasis PRD** (URL, teks, gambar, validasi input) beserta hasil yang diinginkan. Jalankan `python tests/test_sample_cases.py` untuk tabel harapan vs hasil |
 | `test_text_detection.py` | DET-04: normalizer (leetspeak, spaced letters) dan deteksi kata kunci |
 | `test_visual_detection.py` | DET-02: pencocokan pHash, indeks referensi |
 | `test_pipeline.py` | Skor gabungan, Rendah/Sedang/Tinggi, timeout detektor |

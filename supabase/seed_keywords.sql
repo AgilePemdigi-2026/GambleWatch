@@ -7,7 +7,7 @@ insert into public.keywords (term, category, weight, active, language, variation
   ('togel', 'lottery', 0.9, true, 'id', '{}'::text[], '{}'::text[]),
   ('slot', 'slot', 0.7, true, 'id', '{}'::text[], '{}'::text[]),
   ('betting', 'betting', 0.8, true, 'id', '{}'::text[], '{}'::text[]),
-  ('bandar', 'agent', 0.5, true, 'id', '{}'::text[], '{}'::text[]),
+  ('bandar', 'agent', 0.3, true, 'id', '{}'::text[], '{}'::text[]),
   ('kasino', 'casino', 0.9, true, 'id', '{}'::text[], '{}'::text[]),
   ('poker', 'card_game', 0.7, true, 'id', '{}'::text[], '{}'::text[]),
   ('domino', 'card_game', 0.4, true, 'id', '{}'::text[], '{}'::text[]),
