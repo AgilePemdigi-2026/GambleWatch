@@ -23,12 +23,17 @@ Multi-modal detection engine for identifying online gambling content. This is a 
 - Reuses DET-04 for keyword detection
 - Indonesian language support
 
-### 🔄 **DET-02: Visual Similarity Detection** (Pending)
-- pHash for near-duplicate detection
-- CLIP embeddings for semantic similarity
-- Reference index interface
+### ✅ **DET-02: Visual Similarity Detection**
+- pHash comparison against a reference index of known gambling-site screenshots
+- Optional CLIP embeddings for semantic similarity (`use_clip=True`, untested here)
+- Index is a `.npz` file (no pickle). Build it with
+  `python scripts/build_reference_index.py --image-dir <folder of JPG/PNG>`
+- Without an index the detector reports `skipped`, it does not fail the pipeline
 
 ### ✅ **Pipeline**
+- Combined probability score and indication level **Rendah / Sedang / Tinggi**
+  (`summary["indication"]`, thresholds in `detection_config.py`) plus per-module
+  scores for URL Pattern, Visual Similarity, OCR and Keyword Analysis
 - Concurrent execution of all detectors
 - Failure isolation (one detector failing doesn't affect others)
 - Timeout management per detector
@@ -94,8 +99,8 @@ print(f"Overall Risk: {result['summary']['overall_risk']}")
 ### Individual Detectors
 
 ```python
-from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
 
 # URL Pattern Detection
 url_detector = URLPatternDetector()
@@ -116,37 +121,43 @@ python test_detection.py
 
 ## Project Structure
 
+Repository layout:
+
+```
+app/                 # Next.js frontend (App Router pages)
+  components/        # Shared UI (AuthForm, ComingSoon)
+lib/                 # Frontend helpers (firebase.ts, detection.ts = DET-01 port)
+public/              # Static assets
+detection_engine/    # Python detection engine (see below)
+data/                # keywords.json and other data files
+tests/               # pytest suite (run: pytest)
+scripts/             # Setup, dependency checks, evaluation, index building
+  demos/             # Print-only demo scripts (not part of the test suite)
+docs/                # Deployment guide, Tesseract install notes
+```
+
+Detection engine (one numbered folder per detector, matching the backlog IDs):
+
 ```
 detection_engine/
-├── __init__.py              # Main entry point
-├── models/
-│   ├── __init__.py
-│   └── detection_models.py  # Pydantic models (DetectionInput, DetectionResult, etc.)
-├── config/
-│   ├── __init__.py
-│   └── detection_config.py  # Timeouts, thresholds, configuration
-├── validation/
-│   ├── __init__.py
-│   └── input_validator.py   # Input validation with Indonesian error messages
-├── text/
-│   ├── __init__.py
-│   └── text_normalizer.py   # Text normalization for DET-04
-├── providers/
-│   ├── __init__.py
-│   └── keyword_provider.py  # Keyword provider with Firestore + local cache
+├── pipeline.py                     # Runs all detectors in parallel, builds the summary
+│                                   #   (combined score + Rendah/Sedang/Tinggi)
+├── __init__.py                     # detect() entry point
 ├── detectors/
-│   ├── url_pattern/         # DET-01
-│   │   ├── __init__.py
+│   ├── det01_url_pattern/          # DET-01  URL pattern rules
 │   │   └── url_pattern_detector.py
-│   ├── text_keyword/        # DET-04
-│   │   ├── __init__.py
-│   │   └── text_keyword_detector.py
-│   ├── ocr/                 # DET-03
-│   │   ├── __init__.py
+│   ├── det02_visual_similarity/    # DET-02  Screenshot vs. reference index
+│   │   ├── visual_detector.py
+│   │   └── reference_index.py      #         Index build/load (.npz) + optional CLIP
+│   ├── det03_ocr/                  # DET-03  Tesseract OCR, scored by DET-04
 │   │   └── ocr_detector.py
-│   └── visual/              # DET-02 (pending)
-│       └── __init__.py
-└── pipeline.py              # Orchestrates all detectors
+│   └── det04_text_keyword/         # DET-04  Keyword matching on page text
+│       ├── text_keyword_detector.py
+│       ├── text_normalizer.py      #         Leetspeak / homoglyph / spaced-letter cleanup
+│       └── keyword_provider.py     #         Firestore + local keywords.json, 15 min cache
+├── models/detection_models.py      # DetectionInput, DetectionResult, PipelineResult
+├── config/detection_config.py      # Timeouts, thresholds, indication levels
+└── validation/input_validator.py   # Input validation (Indonesian error messages)
 ```
 
 ## Configuration
@@ -225,7 +236,7 @@ keyword_local_fallback_path = "data/keywords.json"
 ### Adding Custom Keywords
 
 ```python
-from detection_engine.providers.keyword_provider import KeywordProvider, GamblingKeyword
+from detection_engine.detectors.det04_text_keyword.keyword_provider import KeywordProvider, GamblingKeyword
 
 provider = KeywordProvider()
 
@@ -242,7 +253,7 @@ provider.add_keyword(keyword)
 
 ### Extending URL Patterns
 
-Edit `detection_engine/detectors/url_pattern/url_pattern_detector.py`:
+Edit `detection_engine/detectors/det01_url_pattern/url_pattern_detector.py`:
 
 ```python
 # Add to GAMBLING_TLDS list

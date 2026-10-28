@@ -6,9 +6,9 @@ from detection_engine.models.detection_models import (
 )
 from detection_engine.config.detection_config import config
 from detection_engine.validation.input_validator import InputValidator, default_validator
-from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector, default_url_pattern_detector
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector, default_text_keyword_detector
-from detection_engine.detectors.ocr.ocr_detector import OCRDetector, default_ocr_detector
+from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector, default_url_pattern_detector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector, default_text_keyword_detector
+from detection_engine.detectors.det03_ocr.ocr_detector import OCRDetector, default_ocr_detector
 from detection_engine.pipeline import DetectionPipeline, default_pipeline
 
 
