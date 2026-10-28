@@ -31,8 +31,8 @@ export default function SignInAdminPage() {
       return;
     }
 
-    // 2. Cek apakah user memiliki role 'admin' di app_metadata
-    const userRole = data.user?.app_metadata?.role;
+    // 2. Cek apakah user memiliki role 'admin' di user_metadata atau app_metadata
+    const userRole = data.user?.user_metadata?.role || data.user?.app_metadata?.role;
 
     if (userRole !== 'admin') {
       // Logout otomatis jika masyarakat biasa mencoba login dari portal Admin
@@ -42,9 +42,9 @@ export default function SignInAdminPage() {
       return;
     }
 
-    // 3. Jika terverifikasi Admin, redirect ke dashboard
+    // 3. Jika terverifikasi Admin, redirect langsung ke dashboard admin (/admin)
     if (data.user) {
-      router.push('/'); // Ubah route ini ke '/admin-dashboard' atau halaman admin tujuanmu
+      router.push('/admin');
     }
 
     setLoading(false);

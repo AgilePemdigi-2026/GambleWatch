@@ -7,6 +7,7 @@ export default function SignUpPage() {
       mode="sign-up"
       title="Buat Akun"
       subtitle="Daftar untuk mulai menganalisis dan melaporkan situs judi online"
+      defaultRole="masyarakat"
       footer={
         <>
           Sudah punya akun?{" "}

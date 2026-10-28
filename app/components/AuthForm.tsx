@@ -11,6 +11,7 @@ type AuthFormProps = {
   identifierLabel?: string;
   identifierPlaceholder?: string;
   footer?: React.ReactNode;
+  defaultRole?: "masyarakat" | "admin";
 };
 
 const inputClass =
@@ -23,6 +24,7 @@ export default function AuthForm({
   identifierLabel = "EMAIL / NIK",
   identifierPlaceholder = "Masukkan Email atau NIK",
   footer,
+  defaultRole = "masyarakat",
 }: AuthFormProps) {
   const isSignUp = mode === "sign-up";
   const router = useRouter();
@@ -49,13 +51,14 @@ export default function AuthForm({
         return;
       }
 
-      // Panggil Supabase SignUp
+      // Panggil Supabase SignUp dengan metadata role
       const { data, error } = await supabase.auth.signUp({
         email: identifier,
         password: password,
         options: {
           data: {
             full_name: fullName,
+            role: defaultRole,
           },
         },
       });
@@ -67,7 +70,16 @@ export default function AuthForm({
       }
 
       if (data.user) {
-        setSuccessMsg("Pendaftaran berhasil! Silakan cek email kamu atau langsung coba login.");
+        setSuccessMsg("Pendaftaran berhasil! Mengalihkan...");
+        
+        // Pengalihan langsung setelah sign-up berhasil
+        setTimeout(() => {
+          if (defaultRole === "admin") {
+            router.push("/admin");
+          } else {
+            router.push("/sign-in/sign-in-masyarakat");
+          }
+        }, 1200);
       }
     } else {
       // Panggil Supabase SignIn
@@ -83,7 +95,12 @@ export default function AuthForm({
       }
 
       if (data.user) {
-        router.push("/");
+        const userRole = data.user.user_metadata?.role;
+        if (userRole === "admin") {
+          router.push("/admin");
+        } else {
+          router.push("/gambling-analysis");
+        }
       }
     }
 
