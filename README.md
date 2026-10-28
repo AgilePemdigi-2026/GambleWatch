@@ -14,7 +14,7 @@ Multi-modal detection engine for identifying online gambling content. This is a 
 ### ✅ **DET-04: Text/Keyword Detection**
 - Text normalization (NFKC, lowercase, leetspeak substitution)
 - Fuzzy matching with RapidFuzz
-- Keyword provider with Firestore caching + local fallback
+- Keyword provider with Supabase caching + local fallback
 - Weighted scoring with categories and snippets
 
 ### ✅ **DET-03: OCR Detection**
@@ -60,11 +60,15 @@ pip install -r requirements.txt
 
 ### Optional Dependencies
 
-For Firebase integration (KeywordProvider):
+For Supabase integration (KeywordProvider + admin dashboard):
 ```bash
-# Set up Firebase Admin SDK
-# 1. Download service account key from Firebase Console
-# 2. Set GOOGLE_APPLICATION_CREDENTIALS environment variable
+# 1. Buat project di https://supabase.com
+# 2. Jalankan supabase/schema.sql di SQL Editor
+# 3. Isi tabel keywords: jalankan supabase/seed_keywords.sql di SQL Editor
+#    (dibuat dari data/keywords.json: python scripts/export_keywords_sql.py)
+# 4. Salin .env.example -> .env.local, isi URL & key dari Project Settings -> API
+# 5. Untuk Python, set SUPABASE_URL dan SUPABASE_KEY sebagai environment variable
+#    (tanpa keduanya, KeywordProvider memakai data/keywords.json)
 ```
 
 For OCR with better accuracy:
@@ -126,7 +130,7 @@ Repository layout:
 ```
 app/                 # Next.js frontend (App Router pages)
   components/        # Shared UI (AuthForm, ComingSoon)
-lib/                 # Frontend helpers (firebase.ts, detection.ts = DET-01 port)
+lib/                 # Frontend helpers (supabase.ts, detection.ts = DET-01 port)
 public/              # Static assets
 detection_engine/    # Python detection engine (see below)
 data/                # keywords.json and other data files
@@ -154,7 +158,7 @@ detection_engine/
 │   └── det04_text_keyword/         # DET-04  Keyword matching on page text
 │       ├── text_keyword_detector.py
 │       ├── text_normalizer.py      #         Leetspeak / homoglyph / spaced-letter cleanup
-│       └── keyword_provider.py     #         Firestore + local keywords.json, 15 min cache
+│       └── keyword_provider.py     #         Supabase + local keywords.json, 15 min cache
 ├── models/detection_models.py      # DetectionInput, DetectionResult, PipelineResult
 ├── config/detection_config.py      # Timeouts, thresholds, indication levels
 └── validation/input_validator.py   # Input validation (Indonesian error messages)

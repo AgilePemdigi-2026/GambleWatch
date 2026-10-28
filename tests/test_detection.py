@@ -118,7 +118,7 @@ def test_detection_engine():
     print("\n📝 Next steps:")
     print("   1. Install Tesseract for OCR detection: https://github.com/UB-Mannheim/tesseract/wiki")
     print("   2. Implement DET-02 (Visual Similarity Detection)")
-    print("   3. Add Firebase Admin SDK for keyword provider")
+    print("   3. Configure Supabase for keyword provider")
     print("   4. Create API wrapper for your application")
 
 

@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/lib/firebase"; // Sesuaikan dengan path file firebase.ts kamu
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { supabase, TABLES } from "@/lib/supabase";
 
 interface DetailReport {
   id: string;
@@ -31,32 +30,36 @@ function DetailVerifikasiContent() {
   const [catatan, setCatatan] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // 1. Fetch Detail Laporan Berdasarkan ID dari Firestore
+  // 1. Fetch Detail Laporan Berdasarkan ID dari Supabase
   useEffect(() => {
     if (!reportId) return;
 
     const fetchDetail = async () => {
       try {
-        const docRef = doc(db, "laporan_masyarakat", reportId);
-        const docSnap = await getDoc(docRef);
+        const { data, error } = await supabase
+          .from(TABLES.laporan)
+          .select("*")
+          .eq("id", reportId)
+          .maybeSingle();
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        if (error) throw error;
+
+        if (data) {
           setReport({
-            id: docSnap.id,
-            situsUrl: data.situsUrl || data.url || "-",
-            dilaporkanOleh: data.dilaporkanOleh || data.pelapor || "Anonim",
-            klasifikasi: data.klasifikasi || data.statusRisiko || "PENDING",
-            tanggalDeteksi: data.tanggalDeteksi || "-",
-            polaUrlMatch: data.polaUrlMatch || "98% Match",
-            visualSimilarity: data.visualSimilarity || "85% Match",
-            kataKunciOcr: data.kataKunciOcr || "Tergolong Judi",
-            screenshotUrl: data.screenshotUrl || "",
-            catatanAdmin: data.catatanAdmin || "",
+            id: data.id,
+            situsUrl: data.situs_url || "-",
+            dilaporkanOleh: data.dilaporkan_oleh || "Anonim",
+            klasifikasi: data.klasifikasi || "PENDING",
+            tanggalDeteksi: data.tanggal_deteksi || "-",
+            polaUrlMatch: data.pola_url_match || "98% Match",
+            visualSimilarity: data.visual_similarity || "85% Match",
+            kataKunciOcr: data.kata_kunci_ocr || "Tergolong Judi",
+            screenshotUrl: data.screenshot_url || "",
+            catatanAdmin: data.catatan_admin || "",
           });
-          if (data.catatanAdmin) setCatatan(data.catatanAdmin);
+          if (data.catatan_admin) setCatatan(data.catatan_admin);
         } else {
-          console.error("Dokumen tidak ditemukan!");
+          console.error("Data laporan tidak ditemukan!");
         }
       } catch (error) {
         console.error("Error fetching detail:", error);
@@ -68,24 +71,28 @@ function DetailVerifikasiContent() {
     fetchDetail();
   }, [reportId]);
 
-  // 2. Simpan/Update Keputusan Verifikasi ke Firestore
+  // 2. Simpan/Update Keputusan Verifikasi ke Supabase
   const handleSimpan = async () => {
     if (!reportId) return;
     setIsSaving(true);
 
     try {
-      const docRef = doc(db, "laporan_masyarakat", reportId);
-      await updateDoc(docRef, {
-        statusVerifikasi: keputusan,
-        catatanAdmin: catatan,
-        updatedAt: new Date(),
-      });
+      const { error } = await supabase
+        .from(TABLES.laporan)
+        .update({
+          status_verifikasi: keputusan,
+          catatan_admin: catatan,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", reportId);
+
+      if (error) throw error;
 
       alert(`Keputusan untuk ID ${reportId} berhasil disimpan!`);
       router.push("/admin/hasil-klasifikasi");
     } catch (error) {
       console.error("Gagal menyimpan keputusan:", error);
-      alert("Gagal menyimpan keputusan ke Firestore.");
+      alert("Gagal menyimpan keputusan ke Supabase.");
     } finally {
       setIsSaving(false);
     }
@@ -107,7 +114,7 @@ function DetailVerifikasiContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FBF9F5] flex items-center justify-center text-xs text-gray-500 font-medium">
-        Memuat detail data laporan dari Firestore...
+        Memuat detail data laporan dari Supabase...
       </div>
     );
   }

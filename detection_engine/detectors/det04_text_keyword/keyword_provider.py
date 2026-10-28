@@ -1,4 +1,4 @@
-"""Keyword provider with Firestore caching and local fallback."""
+"""Keyword provider with Supabase caching and local fallback."""
 
 import json
 import os
@@ -9,13 +9,11 @@ from dataclasses import dataclass
 import logging
 
 try:
-    import firebase_admin
-    from firebase_admin import firestore
-    from google.cloud import firestore as google_firestore
-    FIREBASE_AVAILABLE = True
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
 except ImportError:
-    FIREBASE_AVAILABLE = False
-    google_firestore = None
+    SUPABASE_AVAILABLE = False
+    Client = None
 
 
 @dataclass
@@ -31,7 +29,7 @@ class GamblingKeyword:
 
 
 class KeywordProvider:
-    """Provides gambling keywords from Firestore with local fallback."""
+    """Provides gambling keywords from Supabase with local fallback."""
     
     # Seed list of Indonesian gambling keywords (from TypeScript code)
     SEED_KEYWORDS = [
@@ -82,49 +80,40 @@ class KeywordProvider:
         # Cache state
         self._keywords_cache: Optional[List[GamblingKeyword]] = None
         self._cache_timestamp: float = 0
-        self._firestore_client = None
+        self._supabase_client = None
         
         # Ensure data directory exists
         self.local_fallback_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Initialize Firebase if available
-        self._init_firebase()
+        # Initialize Supabase if available
+        self._init_supabase()
     
-    def _init_firebase(self):
-        """Initialize Firebase Admin SDK if available."""
-        if not FIREBASE_AVAILABLE:
-            self.logger.warning("Firebase Admin SDK not available. Using local keywords only.")
+    def _init_supabase(self):
+        """Initialize Supabase client if the package and credentials exist."""
+        if not SUPABASE_AVAILABLE:
+            self.logger.warning("Supabase client not installed. Using local keywords only.")
             return
-        
-        # Without credentials, initialize_app() makes the Google auth library
-        # probe for a metadata server, which stalls every detector start by
-        # tens of seconds. Skip Firestore unless it is actually configured.
-        if not any(os.environ.get(v) for v in
-                   ("GOOGLE_APPLICATION_CREDENTIALS", "FIREBASE_CONFIG", "K_SERVICE")):
-            self.logger.info("No Firebase credentials configured. Using local keywords.")
+
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_KEY")
+        if not url or not key:
+            self.logger.info("SUPABASE_URL / SUPABASE_KEY not set. Using local keywords.")
             return
 
         try:
-            # Try to initialize Firebase (user must have credentials)
-            if not firebase_admin._apps:
-                # In production, credentials should be set via environment variables
-                # or service account file
-                firebase_admin.initialize_app()
-            
-            self._firestore_client = firestore.client()
-            self.logger.info("Firebase Admin SDK initialized successfully.")
-            
+            self._supabase_client = create_client(url, key)
+            self.logger.info("Supabase client initialized successfully.")
         except Exception as e:
-            self.logger.warning(f"Failed to initialize Firebase: {e}. Using local keywords.")
-            self._firestore_client = None
+            self.logger.warning(f"Failed to initialize Supabase: {e}. Using local keywords.")
+            self._supabase_client = None
     
     def get_keywords(self, force_refresh: bool = False) -> List[GamblingKeyword]:
         """
-        Get keywords from cache, Firestore, or local fallback.
+        Get keywords from cache, Supabase, or local fallback.
         
         Priority:
         1. Cache (if not expired)
-        2. Firestore (if available)
+        2. Supabase (if available)
         3. Local JSON file
         4. Seed keywords
         """
@@ -134,9 +123,9 @@ class KeywordProvider:
         
         keywords = None
         
-        # Try Firestore
-        if self._firestore_client:
-            keywords = self._fetch_from_firestore()
+        # Try Supabase
+        if self._supabase_client:
+            keywords = self._fetch_from_supabase()
         
         # Try local file
         if not keywords:
@@ -164,35 +153,37 @@ class KeywordProvider:
         cache_age_minutes = (time.time() - self._cache_timestamp) / 60
         return cache_age_minutes < self.cache_ttl_minutes
     
-    def _fetch_from_firestore(self) -> Optional[List[GamblingKeyword]]:
-        """Fetch keywords from Firestore."""
+    def _fetch_from_supabase(self) -> Optional[List[GamblingKeyword]]:
+        """Fetch active keywords from the Supabase 'keywords' table."""
         try:
-            if not self._firestore_client:
+            if not self._supabase_client:
                 return None
             
-            # Assuming keywords are stored in 'keywords' collection
-            keywords_ref = self._firestore_client.collection('keywords')
-            docs = keywords_ref.where('active', '==', True).stream()
+            response = (
+                self._supabase_client.table("keywords")
+                .select("term, category, weight, active, language, variations, aliases")
+                .eq("active", True)
+                .execute()
+            )
             
             keywords = []
-            for doc in docs:
-                data = doc.to_dict()
+            for data in response.data or []:
                 keyword = GamblingKeyword(
                     term=data.get('term', ''),
-                    category=data.get('category', 'general'),
-                    weight=float(data.get('weight', 0.5)),
+                    category=data.get('category') or 'general',
+                    weight=float(data.get('weight') or 0.5),
                     active=data.get('active', True),
-                    language=data.get('language', 'id'),
-                    variations=data.get('variations', []),
-                    aliases=data.get('aliases', []),
+                    language=data.get('language') or 'id',
+                    variations=data.get('variations') or [],
+                    aliases=data.get('aliases') or [],
                 )
                 keywords.append(keyword)
             
-            self.logger.info(f"Loaded {len(keywords)} keywords from Firestore")
+            self.logger.info(f"Loaded {len(keywords)} keywords from Supabase")
             return keywords
             
         except Exception as e:
-            self.logger.error(f"Error fetching from Firestore: {e}")
+            self.logger.error(f"Error fetching from Supabase: {e}")
             return None
     
     def _load_from_local_file(self) -> Optional[List[GamblingKeyword]]:

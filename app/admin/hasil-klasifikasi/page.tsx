@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { db } from "@/lib/firebase"; // Sesuaikan path sesuai lokasi file firebase.ts kamu
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { supabase, TABLES } from "@/lib/supabase";
 
 interface KlasifikasiItem {
   id: string;
@@ -19,7 +18,7 @@ export default function HasilKlasifikasiPage() {
   const [rentangTanggal, setRentangTanggal] = useState("");
   const [cariUrl, setCariUrl] = useState("");
   
-  // State Data Firestore & Loading
+  // State Data Supabase & Loading
   const [reports, setReports] = useState<KlasifikasiItem[]>([]);
   const [filteredData, setFilteredData] = useState<KlasifikasiItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,31 +27,48 @@ export default function HasilKlasifikasiPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // 1. Fetch Real-time Data dari Firestore Collection "laporan_masyarakat"
+  // 1. Fetch data dari tabel Supabase "laporan_masyarakat" + subscribe Realtime
   useEffect(() => {
-    const q = query(collection(db, "laporan_masyarakat"), orderBy("createdAt", "desc"));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: KlasifikasiItem[] = snapshot.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id,
-          situsUrl: docData.situsUrl || docData.url || "-",
-          dilaporkanOleh: docData.dilaporkanOleh || docData.pelapor || "Anonim",
-          klasifikasi: docData.klasifikasi || docData.statusRisiko || "PENDING",
-          tanggalDeteksi: docData.tanggalDeteksi || " - ",
-        };
-      });
+    const fetchReports = async () => {
+      const { data, error } = await supabase
+        .from(TABLES.laporan)
+        .select("id, situs_url, dilaporkan_oleh, klasifikasi, tanggal_deteksi")
+        .order("created_at", { ascending: false });
 
-      setReports(data);
-      setFilteredData(data);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching Firestore data:", error);
-      setLoading(false);
-    });
+      if (error) {
+        console.error("Error fetching Supabase data:", error);
+        setLoading(false);
+        return;
+      }
 
-    return () => unsubscribe();
+      const mapped: KlasifikasiItem[] = (data ?? []).map((row) => ({
+        id: row.id,
+        situsUrl: row.situs_url || "-",
+        dilaporkanOleh: row.dilaporkan_oleh || "Anonim",
+        klasifikasi: row.klasifikasi || "PENDING",
+        tanggalDeteksi: row.tanggal_deteksi || " - ",
+      }));
+
+      setReports(mapped);
+      setFilteredData(mapped);
+      setLoading(false);
+    };
+
+    fetchReports();
+
+    // Pengganti onSnapshot: setiap ada INSERT/UPDATE/DELETE, ambil ulang datanya
+    const channel = supabase
+      .channel("laporan-masyarakat-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLES.laporan },
+        () => fetchReports()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Helper Konversi Tanggal DD/MM/YYYY
@@ -256,7 +272,7 @@ export default function HasilKlasifikasiPage() {
           <div className="bg-[#F5F2EA] rounded-2xl p-5 border border-[#EBE6DA]">
             {loading ? (
               <div className="text-center py-12 text-gray-500 text-xs font-medium">
-                Mengambil data dari Firestore...
+                Mengambil data dari Supabase...
               </div>
             ) : filteredData.length === 0 ? (
               <div className="text-center py-12 text-gray-500 text-xs font-medium">

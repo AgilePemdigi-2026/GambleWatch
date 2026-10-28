@@ -99,7 +99,7 @@ export default function SignInMasyarakatPage() {
               className="mt-8 space-y-6"
               onSubmit={(e) => {
                 e.preventDefault();
-                alert('Form siap dihubungkan ke Firebase Authentication.');
+                alert('Form siap dihubungkan ke Supabase Auth.');
               }}
             >
               <div>

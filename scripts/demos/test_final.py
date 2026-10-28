@@ -125,7 +125,7 @@ print("  🔧 Needs: Full rule engine integration")
 
 print("\nDET-04: Text/Keyword Detection")
 print("  ✅ Text normalization (NFKC, leetspeak, etc.)")
-print("  ✅ Keyword provider with Firestore + local cache")
+print("  ✅ Keyword provider with Supabase + local cache")
 print("  ✅ Fuzzy matching with RapidFuzz")
 print("  ✅ Indonesian/English keyword support")
 print("  ✅ Weighted scoring")

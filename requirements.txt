@@ -18,9 +18,8 @@ imagehash>=4.3.1
 torch>=2.0.0  # for CLIP if needed
 transformers>=4.35.0  # for CLIP if needed
 
-# Firebase (for KeywordProvider)
-firebase-admin>=6.0.0
-google-cloud-firestore>=2.11.0
+# Supabase (for KeywordProvider)
+supabase>=2.0.0
 
 # Async and concurrency
 aiohttp>=3.8.0
