@@ -1,23 +1,10 @@
 -- Jalankan di Supabase Dashboard -> SQL Editor
 
--- 1. Laporan masyarakat (pengganti collection Firestore "laporan_masyarakat")
-create table if not exists public.laporan_masyarakat (
-  id                 uuid primary key default gen_random_uuid(),
-  situs_url          text not null,
-  dilaporkan_oleh    text default 'Anonim',
-  klasifikasi        text default 'PENDING' check (klasifikasi in ('HIGH','MEDIUM','LOW','PENDING')),
-  tanggal_deteksi    text,               -- format DD/MM/YYYY, mengikuti UI yang ada
-  pola_url_match     text,
-  visual_similarity  text,
-  kata_kunci_ocr     text,
-  screenshot_url     text,
-  catatan_admin      text,
-  status_verifikasi  text check (status_verifikasi in ('TERVERIFIKASI','DITOLAK')),
-  created_at         timestamptz not null default now(),
-  updated_at         timestamptz
-);
+-- Tabel laporan (`laporan_analisis`, dipakai halaman admin) dikelola langsung
+-- oleh tim di Supabase dan tidak didefinisikan di sini. Pastikan Row Level
+-- Security-nya aktif dan hanya admin yang boleh mengubah/membaca semua baris.
 
--- 2. Keyword judi untuk DET-04 (pengganti collection Firestore "keywords")
+-- Keyword judi untuk DET-04 (dibaca oleh KeywordProvider di detection_engine)
 create table if not exists public.keywords (
   id          bigint generated always as identity primary key,
   term        text not null,
@@ -30,16 +17,10 @@ create table if not exists public.keywords (
   unique (term, language)
 );
 
--- 3. Row Level Security
-alter table public.laporan_masyarakat enable row level security;
+-- Row Level Security: keyword aktif boleh dibaca; tidak ada policy tulis,
+-- jadi hanya service_role (server) yang bisa menambah atau mengubah.
 alter table public.keywords enable row level security;
 
--- Policy sementara untuk development: semua orang boleh baca & update.
--- GANTI dengan policy berbasis auth/role admin sebelum production.
-create policy "dev read laporan"   on public.laporan_masyarakat for select using (true);
-create policy "dev insert laporan" on public.laporan_masyarakat for insert with check (true);
-create policy "dev update laporan" on public.laporan_masyarakat for update using (true);
-create policy "read active keywords" on public.keywords for select using (active = true);
-
--- 4. Aktifkan Realtime untuk halaman admin hasil klasifikasi
-alter publication supabase_realtime add table public.laporan_masyarakat;
+drop policy if exists "read active keywords" on public.keywords;
+create policy "read active keywords" on public.keywords
+  for select using (active = true);

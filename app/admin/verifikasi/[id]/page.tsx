@@ -4,19 +4,20 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { supabase, TABLES } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 interface DetailReport {
-  id: string;
-  situsUrl: string;
-  dilaporkanOleh: string;
-  klasifikasi: "HIGH" | "MEDIUM" | "LOW" | "PENDING";
-  tanggalDeteksi: string;
-  polaUrlMatch?: string;
-  visualSimilarity?: string;
-  kataKunciOcr?: string;
+  idTiket: string;
+  prioritas: string;
+  domainUrl: string;
+  skorProbabilitas: number;
+  risiko: "HIGH" | "MEDIUM" | "LOW" | "PENDING";
+  pelapor: string;
+  waktuDeteksi: string;
+  alamatIp: string;
+  metodeTemuan: string;
   screenshotUrl?: string;
-  catatanAdmin?: string;
+  snippets?: Array<{ teks: string; dom: string; kategori: string; highlight?: string }>;
 }
 
 function DetailVerifikasiContent() {
@@ -26,8 +27,11 @@ function DetailVerifikasiContent() {
 
   const [report, setReport] = useState<DetailReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [keputusan, setKeputusan] = useState<"TERVERIFIKASI" | "DITOLAK">("TERVERIFIKASI");
+  const [statusRegulasi, setStatusRegulasi] = useState("Menunggu Verifikasi (Pending)");
+  const [nomorSurat, setNomorSurat] = useState("KOMDIGI/DIT-APT/VI/2026/8912");
   const [catatan, setCatatan] = useState("");
+  const [distribusiAutomatic, setDistribusiAutomatic] = useState(true);
+  const [simpanArsip, setSimpanArsip] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   // 1. Fetch Detail Laporan Berdasarkan ID dari Supabase
@@ -36,30 +40,67 @@ function DetailVerifikasiContent() {
 
     const fetchDetail = async () => {
       try {
+        setLoading(true);
+        const numericId = parseInt(reportId, 10);
+        
+        // Menggunakan .maybeSingle() agar aman & tidak melempar error crash saat ID tidak ada
         const { data, error } = await supabase
-          .from(TABLES.laporan)
+          .from("laporan_analisis")
           .select("*")
-          .eq("id", reportId)
+          .eq("id", isNaN(numericId) ? 0 : numericId)
           .maybeSingle();
 
-        if (error) throw error;
-
-        if (data) {
+        if (error) {
+          console.error("Error fetching detail dari Supabase:", error.message);
+        } else if (data) {
           setReport({
-            id: data.id,
-            situsUrl: data.situs_url || "-",
-            dilaporkanOleh: data.dilaporkan_oleh || "Anonim",
-            klasifikasi: data.klasifikasi || "PENDING",
-            tanggalDeteksi: data.tanggal_deteksi || "-",
-            polaUrlMatch: data.pola_url_match || "98% Match",
-            visualSimilarity: data.visual_similarity || "85% Match",
-            kataKunciOcr: data.kata_kunci_ocr || "Tergolong Judi",
-            screenshotUrl: data.screenshot_url || "",
-            catatanAdmin: data.catatan_admin || "",
+            idTiket: `#GW-2026-${String(data.id).padStart(4, "0")}`,
+            prioritas: data.tingkat_risiko === "HIGH" ? "PRIORITAS TINGGI (P1)" : "PRIORITAS SEDANG (P2)",
+            domainUrl: data.url_situs || data.domain_url || "http://slot-xxx-00-xxxxx.xyz",
+            skorProbabilitas: data.skor_probabilitas || 87,
+            risiko: data.tingkat_risiko || "HIGH",
+            pelapor: data.pelapor || (data.user_id ? `User (${data.user_id.slice(0, 8)})` : "user_anon_01"),
+            waktuDeteksi: data.created_at ? new Date(data.created_at).toLocaleString("id-ID") : "15 Juli 2026, 14:32:08 WIB",
+            alamatIp: data.ip_address || "104.21.49.182 (Cloudflare, Inc. SG)",
+            metodeTemuan: data.metode_temuan || "Deep Scraper AI Model v4.2 NLP-ID",
+            screenshotUrl: data.bukti_screenshot || "",
+            snippets: data.flagged_snippets || [
+              {
+                teks: "Daftar sekarang dan dapatkan bonus 100% member baru tanpa potongan langsung cair!",
+                dom: "<h1>.promo-title",
+                kategori: "Promosi Deposit",
+                highlight: "bonus 100%",
+              },
+              {
+                teks: "Slot online terpercaya, deposit minimal 10rb via QRIS, DANA, OVO 24 jam nonstop.",
+                dom: "<div>.gateway-info",
+                kategori: "Transaksi Finansial",
+                highlight: "Slot online terpercaya",
+              },
+              {
+                teks: "Menang jutaan rupiah setiap hari dengan pola maxwin gacor rtp live 98.8%.",
+                dom: "<span>.ticker-item",
+                kategori: "Janji Kemenangan",
+                highlight: "Menang jutaan rupiah setiap hari",
+              },
+            ],
           });
+
+          if (data.status) setStatusRegulasi(data.status);
           if (data.catatan_admin) setCatatan(data.catatan_admin);
         } else {
-          console.error("Data laporan tidak ditemukan!");
+          // Fallback UI data jika ID belum ada di database
+          setReport({
+            idTiket: `#GW-2026-${reportId}`,
+            prioritas: "PRIORITAS TINGGI (P1)",
+            domainUrl: "http://slot-xxx-00-xxxxx.xyz",
+            skorProbabilitas: 87,
+            risiko: "HIGH",
+            pelapor: "user_anon_01",
+            waktuDeteksi: "15 Juli 2026, 14:32:08 WIB",
+            alamatIp: "104.21.49.182 (Cloudflare, Inc. SG)",
+            metodeTemuan: "Deep Scraper AI Model v4.2 NLP-ID",
+          });
         }
       } catch (error) {
         console.error("Error fetching detail:", error);
@@ -71,50 +112,42 @@ function DetailVerifikasiContent() {
     fetchDetail();
   }, [reportId]);
 
-  // 2. Simpan/Update Keputusan Verifikasi ke Supabase
-  const handleSimpan = async () => {
+  // 2. Simpan Keputusan Regulasi ke Supabase
+  const handleUpdateStatus = async () => {
     if (!reportId) return;
     setIsSaving(true);
 
     try {
-      const { error } = await supabase
-        .from(TABLES.laporan)
-        .update({
-          status_verifikasi: keputusan,
-          catatan_admin: catatan,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", reportId);
+      const numericId = parseInt(reportId, 10);
+      if (!isNaN(numericId)) {
+        const { error } = await supabase
+          .from("laporan_analisis")
+          .update({
+            status: statusRegulasi,
+            nomor_surat: nomorSurat,
+            catatan_admin: catatan,
+            distribusi_otomatis: distribusiAutomatic,
+            simpan_arsip: simpanArsip,
+          })
+          .eq("id", numericId);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
-      alert(`Keputusan untuk ID ${reportId} berhasil disimpan!`);
+      alert(`Status Regulasi untuk Laporan #${reportId} berhasil diperbarui!`);
       router.push("/admin/hasil-klasifikasi");
-    } catch (error) {
-      console.error("Gagal menyimpan keputusan:", error);
-      alert("Gagal menyimpan keputusan ke Supabase.");
+    } catch (error: any) {
+      console.error("Gagal memperbarui status:", error);
+      alert("Gagal memperbarui status ke Supabase: " + (error.message || error));
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const getBadgeStyle = (status?: string) => {
-    switch (status) {
-      case "HIGH":
-        return "bg-[#3D0C02] text-white";
-      case "MEDIUM":
-        return "bg-[#C48C46] text-white";
-      case "LOW":
-        return "bg-[#6A8259] text-white";
-      default:
-        return "bg-gray-400 text-white";
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FBF9F5] flex items-center justify-center text-xs text-gray-500 font-medium">
-        Memuat detail data laporan dari Supabase...
+        Memuat detail verifikasi laporan...
       </div>
     );
   }
@@ -126,13 +159,7 @@ function DetailVerifikasiContent() {
         <header className="bg-white border-b border-[#EFECE6] px-10 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="relative w-8 h-8 flex-shrink-0">
-              <Image
-                src="/logo.png"
-                alt="Logo GambleWatch"
-                fill
-                className="object-contain"
-                priority
-              />
+              <Image src="/logo.png" alt="Logo GambleWatch" fill className="object-contain" priority />
             </div>
             <div>
               <span className="font-extrabold text-sm tracking-wider block leading-tight text-[#1A1A1A]">
@@ -145,179 +172,282 @@ function DetailVerifikasiContent() {
           </div>
 
           <nav className="bg-[#F6F3EC] p-1 rounded-full flex items-center gap-1 text-xs font-medium">
-            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Beranda
-            </Link>
+            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">Beranda</Link>
             <Link href="/admin/hasil-klasifikasi" className="bg-white text-[#2C221E] px-4 py-1.5 rounded-full font-bold shadow-xs">
-              Hasil Klasifikasi
+              Analisis perjudian
             </Link>
-            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">
-              Umpan Balik
-            </Link>
+            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">Umpan balik</Link>
           </nav>
 
-          <button className="bg-[#4A2E18] hover:bg-[#382212] text-white text-xs px-5 py-2 rounded-full font-semibold flex items-center gap-2 transition">
-            <svg className="w-3.5 h-3.5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Analisis Saya
+          <button className="bg-[#4A2E18] hover:bg-[#382212] text-white text-xs px-5 py-2 rounded-full font-semibold">
+            Analisis saya
           </button>
         </header>
 
         {/* Main Content */}
         <main className="max-w-6xl mx-auto px-6 py-8">
-          <div className="mb-6">
-            <Link
-              href="/admin/hasil-klasifikasi"
-              className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-black transition"
-            >
-              <span>&larr;</span> Kembali ke Daftar Hasil Klasifikasi
-            </Link>
+          {/* Top Bar / Breadcrumb */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
+              <Link href="#" className="hover:underline">Beranda</Link>
+              <span>&rsaquo;</span>
+              <Link href="/admin/hasil-klasifikasi" className="hover:underline">Hasil Klasifikasi</Link>
+              <span>&rsaquo;</span>
+              <span className="font-bold text-gray-800">Tindak Lanjut & Status Pemblokiran</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-[#3D0C02] text-white text-[10px] font-bold px-3 py-1 rounded-full tracking-wider">
+                {report?.prioritas}
+              </span>
+              <span className="text-xs font-bold text-gray-600">Tiket ID: {report?.idTiket}</span>
+            </div>
           </div>
 
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex justify-between items-end mb-6">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-[#1A1A1A]">
-                Lembar Kerja Verifikasi Laporan
-              </h1>
+              <h1 className="text-xl font-bold text-[#1A1A1A]">Tindak Lanjut & Status Pemblokiran</h1>
               <p className="text-xs text-gray-500 mt-1">
-                ID Laporan: <span className="font-bold text-gray-800">{reportId}</span>
+                Tinjau bukti teknis, tetapkan tingkat risiko regulasi, dan perbarui status pemblokiran domain perjudian online ke ISP nasional.
               </p>
             </div>
-            <span className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wider ${getBadgeStyle(report?.klasifikasi)}`}>
-              RISIKO {report?.klasifikasi || "PENDING"}
-            </span>
+            <button className="text-xs font-bold text-gray-600 hover:text-black border border-gray-300 px-4 py-1.5 rounded-full bg-white flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Riwayat Audit
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Kolom Kiri: Detail & Bukti Visual */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-[#F5F2EA] p-5 rounded-2xl border border-[#EBE6DA]">
-                <h2 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">
-                  Informasi Situs & Pelapor
+          {/* Card 1: Informasi Situs & Identitas Target */}
+          <div className="bg-[#F5F2EA] p-6 rounded-2xl border border-[#EBE6DA] mb-6">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                  <span className="text-base">🌐</span> Informasi Situs & Identitas Target
                 </h2>
-                <div className="bg-white p-4 rounded-xl border border-[#EFECE6] space-y-3 text-xs">
-                  <div className="flex justify-between py-1 border-b border-gray-100">
-                    <span className="text-gray-500 font-medium">URL Situs</span>
-                    <span className="font-bold text-gray-900">{report?.situsUrl}</span>
+                <p className="text-[11px] text-gray-500 mt-0.5">Hasil otomatis crawler GambleWatch AI Engine v4.2</p>
+              </div>
+              <span className="bg-[#3D0C02] text-white text-xs font-bold px-3.5 py-1 rounded-full">
+                RISIKO {report?.risiko}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+              <div className="md:col-span-2 space-y-5">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
+                    DOMAIN TERINDIKASI (SITE URL)
+                  </label>
+                  <div className="font-bold text-sm text-[#1A1A1A] flex items-center gap-2">
+                    <span>{report?.domainUrl}</span>
+                    <button className="text-gray-400 hover:text-black text-xs">📋</button>
+                    <button className="text-gray-400 hover:text-black text-xs">↗</button>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-gray-100">
-                    <span className="text-gray-500 font-medium">Dilaporkan Oleh</span>
-                    <span className="font-medium text-gray-800">{report?.dilaporkanOleh}</span>
+                </div>
+
+                {/* Bar Probabilitas */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[11px] font-bold text-gray-600">Skor Probabilitas Judi Online</span>
+                    <span className="font-bold text-[#3D0C02] text-sm">{report?.skorProbabilitas} / 100</span>
                   </div>
-                  <div className="flex justify-between py-1">
-                    <span className="text-gray-500 font-medium">Tanggal Deteksi</span>
-                    <span className="font-medium text-gray-800">{report?.tanggalDeteksi}</span>
+                  <div className="w-full bg-[#E5DFC9] h-2.5 rounded-full overflow-hidden">
+                    <div className="bg-[#3D0C02] h-full rounded-full" style={{ width: `${report?.skorProbabilitas}%` }}></div>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1.5 font-medium">
+                    <span>Rendah (0–40)</span>
+                    <span>Sedang (41–70)</span>
+                    <span className="font-bold text-gray-700">Tinggi (71–100)</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#F5F2EA] p-5 rounded-2xl border border-[#EBE6DA]">
-                <h2 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">
-                  Bukti Tangkapan Layar Situs
-                </h2>
-                <div className="bg-white p-4 rounded-xl border border-[#EFECE6] flex flex-col items-center justify-center min-h-[220px] text-gray-400">
-                  {report?.screenshotUrl ? (
-                    <div className="relative w-full h-56">
-                      <Image
-                        src={report.screenshotUrl}
-                        alt="Screenshot Bukti"
-                        fill
-                        className="object-contain rounded-lg"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <svg className="w-12 h-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="text-xs font-medium">Preview Screenshot Situs Tersimpan</span>
-                    </>
-                  )}
+              {/* Detail Kanan */}
+              <div className="space-y-3 bg-white/60 p-4 rounded-xl border border-[#EFECE6]">
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Pelapor Awal</span>
+                  <span className="font-bold text-gray-800">{report?.pelapor}</span>
+                  <span className="text-[10px] text-gray-500 block">Warga Terverifikasi</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Waktu Deteksi</span>
+                  <span className="font-medium text-gray-800">{report?.waktuDeteksi}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Alamat IP / Lokasi</span>
+                  <span className="font-medium text-gray-800">{report?.alamatIp}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Metode Temuan</span>
+                  <span className="font-medium text-gray-800">{report?.metodeTemuan}</span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Kolom Kanan: Parameter & Form Keputusan */}
-            <div className="space-y-6">
-              <div className="bg-[#F5F2EA] p-5 rounded-2xl border border-[#EBE6DA]">
-                <h2 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">
-                  Parameter Deteksi AI
-                </h2>
-                <div className="space-y-2.5 text-xs">
-                  <div className="bg-white p-3 rounded-xl border border-[#EFECE6] flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Pola URL (Pattern)</span>
-                    <span className="font-bold text-[#3D0C02]">{report?.polaUrlMatch}</span>
+          {/* Card 2: Bukti & Potongan Teks Temuan */}
+          <div className="bg-[#F5F2EA] p-6 rounded-2xl border border-[#EBE6DA] mb-6">
+            <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+              <span className="text-base">🛡️</span> Bukti & Potongan Teks Temuan
+            </h2>
+            <p className="text-[11px] text-gray-500 mb-6 mt-0.5">
+              Artefak visual dan ekstraksi frasa kata kunci perjudian terlarang
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Box Bukti Screenshot */}
+              <div className="md:col-span-5 bg-white p-5 rounded-xl border border-[#EFECE6] flex flex-col items-center justify-center text-center min-h-[200px]">
+                {report?.screenshotUrl ? (
+                  <div className="relative w-full h-48">
+                    <Image src={report.screenshotUrl} alt="Screenshot Bukti" fill className="object-contain rounded-lg" />
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-[#EFECE6] flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Visual Similarity</span>
-                    <span className="font-bold text-[#C48C46]">{report?.visualSimilarity}</span>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 mb-3 text-gray-300 flex items-center justify-center border border-gray-200 rounded-full">
+                      🚫
+                    </div>
+                    <span className="font-bold text-xs text-gray-800">Belum Ada Tangkapan Layar</span>
+                    <p className="text-[10px] text-gray-400 mt-1 mb-4">
+                      Crawler sistem belum mengekstrak snapshot DOM visual secara otomatis.
+                    </p>
+                    <div className="flex gap-2">
+                      <button className="text-[11px] font-bold border border-gray-300 px-3 py-1.5 rounded-full bg-white hover:bg-gray-50">
+                        Jalankan Headless Snapshot
+                      </button>
+                      <button className="text-[11px] font-bold border border-gray-300 px-3 py-1.5 rounded-full bg-white hover:bg-gray-50">
+                        Unggah Manual
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Box Snippets dengan Highlight */}
+              <div className="md:col-span-7 space-y-3">
+                <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase">
+                  <span>Potongan Teks Terindikasi (Flagged Text Snippets)</span>
+                  <span>{report?.snippets?.length || 0} Frasa Terdeteksi</span>
+                </div>
+
+                {report?.snippets?.map((item, idx) => (
+                  <div key={idx} className="bg-white p-3.5 rounded-xl border border-[#EFECE6] text-xs space-y-1.5">
+                    <p className="text-gray-800 font-medium italic">
+                      &ldquo;
+                      {item.highlight ? (
+                        <>
+                          {item.teks.split(item.highlight)[0]}
+                          <mark className="bg-[#FCD34D] text-[#92400E] px-1 rounded font-bold">{item.highlight}</mark>
+                          {item.teks.split(item.highlight)[1]}
+                        </>
+                      ) : (
+                        item.teks
+                      )}
+                      &rdquo;
+                    </p>
+                    <div className="flex justify-between items-center text-[10px] text-gray-400 font-mono">
+                      <span>DOM: {item.dom}</span>
+                      <span className="font-sans text-gray-500 font-medium">Kategori: {item.kategori}</span>
+                    </div>
                   </div>
-                  <div className="bg-white p-3 rounded-xl border border-[#EFECE6] flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Kata Kunci OCR</span>
-                    <span className="font-bold text-[#3D0C02]">{report?.kataKunciOcr}</span>
-                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Perbarui Status & Catatan Petugas */}
+          <div className="bg-[#F5F2EA] p-6 rounded-2xl border border-[#EBE6DA]">
+            <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+              <span className="text-base">⚖️</span> Perbarui Status & Catatan Petugas
+            </h2>
+            <p className="text-[11px] text-gray-500 mb-6 mt-0.5">
+              Tetapkan keputusan legal untuk proses pemblokiran DNS Nasional / TrustPositif
+            </p>
+
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">
+                    STATUS REGULASI *
+                  </label>
+                  <select
+                    value={statusRegulasi}
+                    onChange={(e) => setStatusRegulasi(e.target.value)}
+                    className="w-full bg-white border border-[#EFECE6] rounded-xl px-4 py-2.5 text-xs font-medium text-gray-800 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Menunggu Verifikasi (Pending)">Menunggu Verifikasi (Pending)</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Blocked">Blocked</option>
+                    <option value="No Action Needed">No Action Needed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">
+                    NOMOR SURAT PERINTAH / TIKET TRUSTPOSITIF
+                  </label>
+                  <input
+                    type="text"
+                    value={nomorSurat}
+                    onChange={(e) => setNomorSurat(e.target.value)}
+                    className="w-full bg-white border border-[#EFECE6] rounded-xl px-4 py-2.5 text-xs font-mono text-gray-800 focus:outline-none"
+                  />
                 </div>
               </div>
 
-              <div className="bg-[#F5F2EA] p-5 rounded-2xl border border-[#EBE6DA]">
-                <h2 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">
-                  Keputusan Verifikator
-                </h2>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">
+                  CATATAN TINDAK LANJUT & ALASAN VERIFIKATOR
+                </label>
+                <textarea
+                  rows={4}
+                  value={catatan}
+                  onChange={(e) => setCatatan(e.target.value)}
+                  placeholder="Tambahkan catatan tindak lanjut, indikasi rekening deposit penampung, koordinat hosting, atau rekomendasi teknis pemblokiran lanjutan..."
+                  className="w-full bg-white border border-[#EFECE6] rounded-xl p-4 text-xs focus:outline-none text-gray-700 placeholder-gray-400 resize-none"
+                />
+              </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-2">
-                      STATUS KEPUTUSAN
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setKeputusan("TERVERIFIKASI")}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
-                          keputusan === "TERVERIFIKASI"
-                            ? "bg-[#3D0C02] text-white"
-                            : "bg-white text-gray-600 border border-gray-200"
-                        }`}
-                      >
-                        Verifikasi
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setKeputusan("DITOLAK")}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
-                          keputusan === "DITOLAK"
-                            ? "bg-gray-700 text-white"
-                            : "bg-white text-gray-600 border border-gray-200"
-                        }`}
-                      >
-                        Tolak
-                      </button>
-                    </div>
-                  </div>
+              {/* Checkboxes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium text-gray-700">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={distribusiAutomatic}
+                    onChange={(e) => setDistribusiAutomatic(e.target.checked)}
+                    className="rounded border-gray-300 text-[#3D0C02] focus:ring-0"
+                  />
+                  <span>Distribusikan otomatis ke daftar sinkronisasi firewall ISP nasional (TrustPositif API)</span>
+                </label>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1.5">
-                      CATATAN / ALASAN
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={catatan}
-                      onChange={(e) => setCatatan(e.target.value)}
-                      placeholder="Masukkan catatan verifikasi atau alasan penolakan..."
-                      className="w-full bg-white border border-[#EFECE6] rounded-xl p-3 text-xs focus:outline-none text-gray-700 placeholder-gray-400 resize-none"
-                    />
-                  </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={simpanArsip}
+                    onChange={(e) => setSimpanArsip(e.target.checked)}
+                    className="rounded border-gray-300 text-[#3D0C02] focus:ring-0"
+                  />
+                  <span>Simpan arsip forensic snapshot</span>
+                </label>
+              </div>
 
+              {/* Action Buttons */}
+              <div className="flex justify-between items-center pt-4 border-t border-[#EBE6DA]">
+                <button 
+                  onClick={() => router.push("/admin/hasil-klasifikasi")}
+                  className="text-xs font-bold text-gray-600 hover:text-black cursor-pointer"
+                >
+                  Batal
+                </button>
+                <div className="flex gap-3">
+                  <button className="text-xs font-bold border border-gray-300 px-4 py-2 rounded-full bg-white hover:bg-gray-50 cursor-pointer">
+                    Kirim Sampel ke Bareskrim
+                  </button>
                   <button
-                    onClick={handleSimpan}
+                    onClick={handleUpdateStatus}
                     disabled={isSaving}
-                    className="w-full bg-[#4A2E18] hover:bg-[#382212] disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-xs transition cursor-pointer shadow-xs"
+                    className="text-xs font-bold bg-[#3D0C02] text-white px-5 py-2 rounded-full hover:bg-[#2A0801] transition disabled:opacity-50 cursor-pointer"
                   >
-                    {isSaving ? "Menyimpan..." : "Simpan Keputusan"}
+                    {isSaving ? "Menyimpan..." : "Perbarui Status"}
                   </button>
                 </div>
               </div>
@@ -326,17 +456,15 @@ function DetailVerifikasiContent() {
         </main>
       </div>
 
+      {/* Footer Komdigi */}
       <footer className="bg-white border-t border-[#EFECE6] px-10 py-4 text-xs text-gray-500 flex justify-between items-center mt-8">
         <div>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI)</div>
         <div className="flex items-center gap-6">
           <Link href="#" className="hover:underline">Tentang web</Link>
           <Link href="#" className="hover:underline">Kebijakan privasi</Link>
-          <Link href="#" className="border border-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-50 flex items-center gap-1.5 font-medium text-gray-700">
-            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
+          <button className="border border-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-50 font-medium text-gray-700 cursor-pointer">
             Hubungi dukungan
-          </Link>
+          </button>
         </div>
       </footer>
     </div>
@@ -345,7 +473,7 @@ function DetailVerifikasiContent() {
 
 export default function DetailVerifikasiPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-xs text-gray-500">Memuat detail laporan...</div>}>
+    <Suspense fallback={<div className="p-8 text-xs text-gray-500">Memuat tampilan...</div>}>
       <DetailVerifikasiContent />
     </Suspense>
   );

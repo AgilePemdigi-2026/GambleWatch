@@ -130,7 +130,7 @@ Repository layout:
 ```
 app/                 # Next.js frontend (App Router pages)
   components/        # Shared UI (AuthForm, ComingSoon)
-lib/                 # Frontend helpers (supabase.ts, detection.ts = DET-01 port)
+lib/                 # Frontend helpers (supabase/client.js, detection.ts = DET-01 port)
 public/              # Static assets
 detection_engine/    # Python detection engine (see below)
 data/                # keywords.json and other data files

@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase, TABLES } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 interface KlasifikasiItem {
-  id: string;
+  id: number;
   situsUrl: string;
   dilaporkanOleh: string;
   klasifikasi: "HIGH" | "MEDIUM" | "LOW" | "PENDING";
@@ -17,7 +17,7 @@ export default function HasilKlasifikasiPage() {
   const [statusRisiko, setStatusRisiko] = useState("Semua Status");
   const [rentangTanggal, setRentangTanggal] = useState("");
   const [cariUrl, setCariUrl] = useState("");
-  
+
   // State Data Supabase & Loading
   const [reports, setReports] = useState<KlasifikasiItem[]>([]);
   const [filteredData, setFilteredData] = useState<KlasifikasiItem[]>([]);
@@ -27,48 +27,38 @@ export default function HasilKlasifikasiPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // 1. Fetch data dari tabel Supabase "laporan_masyarakat" + subscribe Realtime
+  // 1. Fetch Real Data dari Supabase (Tabel: laporan_analisis)
   useEffect(() => {
     const fetchReports = async () => {
-      const { data, error } = await supabase
-        .from(TABLES.laporan)
-        .select("id, situs_url, dilaporkan_oleh, klasifikasi, tanggal_deteksi")
-        .order("created_at", { ascending: false });
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("laporan_analisis")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching Supabase data:", error);
+        if (error) {
+          console.error("Error fetching Supabase data:", error.message);
+        } else if (data) {
+          const formattedData: KlasifikasiItem[] = data.map((item) => ({
+            id: item.id,
+            situsUrl: item.url_situs || item.domain_url || "-",
+            dilaporkanOleh: item.pelapor || (item.user_id ? `User (${item.user_id.slice(0, 8)})` : "user_anon_01"),
+            klasifikasi: (item.tingkat_risiko as "HIGH" | "MEDIUM" | "LOW") || "PENDING",
+            tanggalDeteksi: item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "-",
+          }));
+
+          setReports(formattedData);
+          setFilteredData(formattedData);
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const mapped: KlasifikasiItem[] = (data ?? []).map((row) => ({
-        id: row.id,
-        situsUrl: row.situs_url || "-",
-        dilaporkanOleh: row.dilaporkan_oleh || "Anonim",
-        klasifikasi: row.klasifikasi || "PENDING",
-        tanggalDeteksi: row.tanggal_deteksi || " - ",
-      }));
-
-      setReports(mapped);
-      setFilteredData(mapped);
-      setLoading(false);
     };
 
     fetchReports();
-
-    // Pengganti onSnapshot: setiap ada INSERT/UPDATE/DELETE, ambil ulang datanya
-    const channel = supabase
-      .channel("laporan-masyarakat-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: TABLES.laporan },
-        () => fetchReports()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   // Helper Konversi Tanggal DD/MM/YYYY
@@ -80,7 +70,7 @@ export default function HasilKlasifikasiPage() {
     return null;
   };
 
-  // 2. Logika Filter Multi-Kriteria
+  // Logika Filter Multi-Kriteria
   const handleApplyFilter = () => {
     let result = reports;
 
@@ -134,7 +124,7 @@ export default function HasilKlasifikasiPage() {
   return (
     <div className="min-h-screen bg-[#FBF9F5] text-[#2C221E] font-sans flex flex-col justify-between">
       <div>
-        {/* Navbar Admin */}
+        {/* Navbar Admin Header */}
         <header className="bg-white border-b border-[#EFECE6] px-10 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="relative w-8 h-8 flex-shrink-0">
@@ -157,25 +147,19 @@ export default function HasilKlasifikasiPage() {
           </div>
 
           <nav className="bg-[#F6F3EC] p-1 rounded-full flex items-center gap-1 text-xs font-medium">
-            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
+            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">
               Beranda
             </Link>
             <Link href="/admin/hasil-klasifikasi" className="bg-white text-[#2C221E] px-4 py-1.5 rounded-full font-bold shadow-xs">
-              Hasil Klasifikasi
+              Analisis perjudian
             </Link>
             <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">
-              Umpan Balik
+              Umpan balik
             </Link>
           </nav>
 
-          <button className="bg-[#4A2E18] hover:bg-[#382212] text-white text-xs px-5 py-2 rounded-full font-semibold flex items-center gap-2 transition">
-            <svg className="w-3.5 h-3.5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Analisis Saya
+          <button className="bg-[#4A2E18] hover:bg-[#382212] text-white text-xs px-5 py-2 rounded-full font-semibold transition">
+            Analisis saya
           </button>
         </header>
 
@@ -190,11 +174,11 @@ export default function HasilKlasifikasiPage() {
             </div>
             <div className="flex items-center gap-2 text-[11px] text-[#2E7D32] bg-[#EAF5EA] px-3.5 py-1.5 rounded-full font-medium">
               <span className="w-2 h-2 rounded-full bg-[#388E3C]"></span>
-              Database Terkini Terbuka
+              Database Terkini Terbuka (Supabase)
             </div>
           </div>
 
-          {/* Filter */}
+          {/* Filter Panel */}
           <div className="bg-[#F5F2EA] p-5 rounded-2xl mb-6 border border-[#EBE6DA]">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <div>
@@ -385,12 +369,9 @@ export default function HasilKlasifikasiPage() {
         <div className="flex items-center gap-6">
           <Link href="#" className="hover:underline">Tentang web</Link>
           <Link href="#" className="hover:underline">Kebijakan privasi</Link>
-          <Link href="#" className="border border-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-50 flex items-center gap-1.5 font-medium text-gray-700">
-            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
+          <button className="border border-gray-300 px-4 py-1.5 rounded-full hover:bg-gray-50 font-medium text-gray-700 cursor-pointer">
             Hubungi dukungan
-          </Link>
+          </button>
         </div>
       </footer>
     </div>
