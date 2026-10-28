@@ -1,6 +1,7 @@
 """Keyword provider with Firestore caching and local fallback."""
 
 import json
+import os
 import time
 from typing import List, Dict, Optional
 from pathlib import Path
@@ -95,6 +96,14 @@ class KeywordProvider:
             self.logger.warning("Firebase Admin SDK not available. Using local keywords only.")
             return
         
+        # Without credentials, initialize_app() makes the Google auth library
+        # probe for a metadata server, which stalls every detector start by
+        # tens of seconds. Skip Firestore unless it is actually configured.
+        if not any(os.environ.get(v) for v in
+                   ("GOOGLE_APPLICATION_CREDENTIALS", "FIREBASE_CONFIG", "K_SERVICE")):
+            self.logger.info("No Firebase credentials configured. Using local keywords.")
+            return
+
         try:
             # Try to initialize Firebase (user must have credentials)
             if not firebase_admin._apps:

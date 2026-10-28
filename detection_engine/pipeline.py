@@ -5,7 +5,7 @@ import uuid
 import logging
 import asyncio
 from typing import List, Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from detection_engine.models.detection_models import (
     DetectionInput, PipelineResult, DetectionResult, DetectionStatus, DetectorType
@@ -14,18 +14,33 @@ from detection_engine.config.detection_config import config
 from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
 from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
 from detection_engine.detectors.ocr.ocr_detector import OCRDetector
+from detection_engine.detectors.visual.visual_detector import VisualSimilarityDetector
+
+
+# Indication levels from the PRD, keyed by the English risk name used in code
+INDICATION_LABELS = {'low': 'Rendah', 'medium': 'Sedang', 'high': 'Tinggi'}
+
+# Keys under which each detector's result appears in the summary "modules"
+MODULE_KEYS = {
+    DetectorType.URL_PATTERN: 'url_pattern',
+    DetectorType.VISUAL_SIMILARITY: 'visual_similarity',
+    DetectorType.OCR: 'ocr',
+    DetectorType.TEXT_KEYWORD: 'keyword_analysis',
+}
 
 
 class DetectionPipeline:
     """Pipeline that runs all detectors concurrently."""
-    
+
     def __init__(self,
                  url_detector: Optional[URLPatternDetector] = None,
                  text_detector: Optional[TextKeywordDetector] = None,
-                 ocr_detector: Optional[OCRDetector] = None):
+                 ocr_detector: Optional[OCRDetector] = None,
+                 visual_detector: Optional[VisualSimilarityDetector] = None):
         self.url_detector = url_detector or URLPatternDetector()
         self.text_detector = text_detector or TextKeywordDetector()
         self.ocr_detector = ocr_detector or (OCRDetector() if OCRDetector else None)
+        self.visual_detector = visual_detector or VisualSimilarityDetector()
         
         self.logger = logging.getLogger(__name__)
         self.max_workers = config.max_workers
@@ -126,47 +141,59 @@ class DetectionPipeline:
                 'description': 'OCR detection (skipped)',
             })
         
-        # DET-02: Visual Similarity Detection (placeholder for now)
-        # This would be added when DET-02 is implemented
-        tasks.append({
-            'detector_type': DetectorType.VISUAL_SIMILARITY,
-            'task': self._create_skipped_task,
-            'args': ('Visual similarity detection not implemented',),
-            'timeout': 0.1,
-            'description': 'Visual similarity detection (skipped)',
-        })
-        
+        # DET-02: Visual Similarity Detection (from screenshot)
+        if detection_input.screenshot:
+            tasks.append({
+                'detector_type': DetectorType.VISUAL_SIMILARITY,
+                'task': self._run_visual_detection,
+                'args': (detection_input.screenshot,),
+                'timeout': config.visual_similarity_timeout,
+                'description': 'Visual similarity detection',
+            })
+        else:
+            tasks.append({
+                'detector_type': DetectorType.VISUAL_SIMILARITY,
+                'task': self._create_skipped_task,
+                'args': ('No screenshot provided',),
+                'timeout': 0.1,
+                'description': 'Visual similarity detection (skipped)',
+            })
+
         return tasks
     
     def _run_concurrently(self, tasks: List[Dict[str, Any]]) -> List[DetectionResult]:
         """Run tasks concurrently with timeouts."""
         results = []
-        
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all tasks
-            future_to_task = {}
-            for task in tasks:
-                future = executor.submit(
+
+        # Not a `with` block: leaving one waits for every worker, which would
+        # make a hung detector block the whole pipeline past its timeout.
+        executor = ThreadPoolExecutor(max_workers=max(self.max_workers, len(tasks)))
+        try:
+            future_to_task = {
+                executor.submit(
                     task['task'], task['detector_type'], *task['args'], task['timeout']
-                )
-                future_to_task[future] = task
-            
-            # Collect results as they complete
-            for future in as_completed(future_to_task):
-                task = future_to_task[future]
-                
-                try:
-                    result = future.result(timeout=task['timeout'] + 1.0)
-                    results.append(result)
-                    
-                except TimeoutError:
+                ): task
+                for task in tasks
+            }
+
+            # All tasks run in parallel, so each gets its own deadline
+            # counted from now; wait for the slowest allowed one.
+            deadline = time.monotonic() + max(t['timeout'] for t in tasks) + 1.0
+            done, _ = wait(future_to_task, timeout=max(deadline - time.monotonic(), 0))
+
+            for future, task in future_to_task.items():
+                if future not in done:
                     self.logger.warning(f"Task timeout: {task['description']}")
                     results.append(self._create_timeout_result(task['detector_type']))
-                    
+                    continue
+                try:
+                    results.append(future.result())
                 except Exception as e:
                     self.logger.error(f"Task failed: {task['description']} - {e}")
                     results.append(self._create_error_result(task['detector_type'], str(e)))
-        
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
         # Sort results by detector type for consistency
         results.sort(key=lambda r: r.detector.value)
         
@@ -184,6 +211,10 @@ class DetectionPipeline:
         """Run OCR detection."""
         return self.ocr_detector.detect(screenshot, timeout=timeout)
     
+    def _run_visual_detection(self, detector_type: DetectorType, screenshot, timeout: float) -> DetectionResult:
+        """Run visual similarity detection."""
+        return self.visual_detector.detect(screenshot, timeout=timeout)
+
     def _create_skipped_task(self, detector_type: DetectorType, reason: str, timeout: float) -> DetectionResult:
         """Create a skipped result task."""
         # Simulate some processing time
@@ -259,6 +290,29 @@ class DetectionPipeline:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.run_all, detection_input)
     
+    @staticmethod
+    def combine_scores(results: List[DetectionResult]) -> float:
+        """Combine detector scores into one probability (0..1).
+
+        Only detectors that ran successfully count. Evidence from independent
+        sources (URL, visual, text) combines as noisy-OR, so one strong signal
+        is enough and agreement raises confidence. OCR and keyword analysis
+        both read the same words (OCR just extracts them from an image first),
+        so they count once, as the stronger of the two.
+        """
+        ok = {r.detector: r.score for r in results if r.status == DetectionStatus.OK}
+        independent = [
+            ok.get(DetectorType.URL_PATTERN),
+            ok.get(DetectorType.VISUAL_SIMILARITY),
+            max((ok[d] for d in (DetectorType.OCR, DetectorType.TEXT_KEYWORD) if d in ok),
+                default=None),
+        ]
+        remaining = 1.0
+        for score in independent:
+            if score is not None:
+                remaining *= 1.0 - min(max(score, 0.0), 1.0)
+        return 1.0 - remaining
+
     def get_summary(self, pipeline_result: PipelineResult) -> Dict[str, Any]:
         """Get a summary of pipeline results."""
         summary = {
@@ -289,17 +343,28 @@ class DetectionPipeline:
             else:
                 summary['skipped'] += 1
         
-        # Calculate overall risk (take highest score)
-        ok_scores = [r.score for r in pipeline_result.results if r.status == DetectionStatus.OK]
-        if ok_scores:
-            max_score = max(ok_scores)
-            if max_score >= 0.7:
-                summary['overall_risk'] = 'high'
-            elif max_score >= 0.4:
-                summary['overall_risk'] = 'medium'
-            else:
-                summary['overall_risk'] = 'low'
-        
+        # Per-module scores, as shown on the PRD result page
+        modules = {key: {'status': 'skipped', 'label': 'Skipped', 'score': 0.0}
+                   for key in MODULE_KEYS.values()}
+        for result in pipeline_result.results:
+            modules[MODULE_KEYS[result.detector]] = {
+                'status': result.status.value,
+                'label': result.label,
+                'score': result.score,
+            }
+        summary['modules'] = modules
+
+        # Combined probability score and indication level
+        score = self.combine_scores(pipeline_result.results)
+        summary['overall_score'] = score
+        if score >= config.indication_high_threshold:
+            summary['overall_risk'] = 'high'
+        elif score >= config.indication_medium_threshold:
+            summary['overall_risk'] = 'medium'
+        else:
+            summary['overall_risk'] = 'low'
+        summary['indication'] = INDICATION_LABELS[summary['overall_risk']]
+
         # Calculate total processing time
         summary['processing_time_ms'] = sum(r.duration_ms for r in pipeline_result.results)
         

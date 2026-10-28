@@ -23,12 +23,17 @@ Multi-modal detection engine for identifying online gambling content. This is a 
 - Reuses DET-04 for keyword detection
 - Indonesian language support
 
-### 🔄 **DET-02: Visual Similarity Detection** (Pending)
-- pHash for near-duplicate detection
-- CLIP embeddings for semantic similarity
-- Reference index interface
+### ✅ **DET-02: Visual Similarity Detection**
+- pHash comparison against a reference index of known gambling-site screenshots
+- Optional CLIP embeddings for semantic similarity (`use_clip=True`, untested here)
+- Index is a `.npz` file (no pickle). Build it with
+  `python scripts/build_reference_index.py --image-dir <folder of JPG/PNG>`
+- Without an index the detector reports `skipped`, it does not fail the pipeline
 
 ### ✅ **Pipeline**
+- Combined probability score and indication level **Rendah / Sedang / Tinggi**
+  (`summary["indication"]`, thresholds in `detection_config.py`) plus per-module
+  scores for URL Pattern, Visual Similarity, OCR and Keyword Analysis
 - Concurrent execution of all detectors
 - Failure isolation (one detector failing doesn't affect others)
 - Timeout management per detector
