@@ -127,8 +127,8 @@ def test_individual_detectors():
     print("\n\n🔬 Testing Individual Detectors")
     print("=" * 50)
     
-    from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
-    from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+    from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
+    from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
     
     # Test URL pattern detector
     print("\nTesting DET-01: URL Pattern Detector")

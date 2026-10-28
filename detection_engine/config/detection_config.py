@@ -16,7 +16,11 @@ class DetectionConfig(BaseModel):
     # Score thresholds
     url_pattern_high_risk_threshold: float = 0.6  # DET-01
     text_keyword_score_threshold: float = 0.3  # DET-04
-    visual_similarity_match_threshold: float = 0.8  # DET-02
+    visual_similarity_match_threshold: float = 0.7  # DET-02 (pHash distance <= 6)
+
+    # Indication level of the combined score (PRD: Rendah / Sedang / Tinggi)
+    indication_medium_threshold: float = 0.4
+    indication_high_threshold: float = 0.7
     
     # Image constraints
     max_image_size_mb: int = 5
@@ -27,7 +31,7 @@ class DetectionConfig(BaseModel):
     keyword_local_fallback_path: str = "data/keywords.json"
     
     # Reference index
-    reference_index_path: str = "data/reference_index.pkl"
+    reference_index_path: str = "data/reference_index.npz"
     clip_model_name: str = "openai/clip-vit-base-patch32"  # For DET-02
     
     # Logging

@@ -11,7 +11,7 @@ print("\n🔍 Testing DET-01: URL Pattern Detection")
 print("-" * 40)
 
 try:
-    from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
+    from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
     
     detector = URLPatternDetector()
     
@@ -53,7 +53,7 @@ print("\n🔍 Testing DET-04: Text/Keyword Detection")
 print("-" * 40)
 
 try:
-    from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+    from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
     
     detector = TextKeywordDetector()
     
@@ -146,7 +146,7 @@ print("\n🔍 Checking DET-03: OCR Detection")
 print("-" * 40)
 
 try:
-    from detection_engine.detectors.ocr.ocr_detector import OCRDetector
+    from detection_engine.detectors.det03_ocr.ocr_detector import OCRDetector
     
     # Check if OCRDetector is available
     if OCRDetector:

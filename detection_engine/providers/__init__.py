@@ -1,1 +1,0 @@
-"""Providers for detection engine (keywords, reference index, etc)."""

@@ -8,7 +8,7 @@ from pathlib import Path
 from detection_engine.models.detection_models import (
     DetectionStatus, DetectorType, DetectionResult, DetectorError
 )
-from detection_engine.detectors.text_keyword.text_keyword_detector import TextKeywordDetector
+from detection_engine.detectors.det04_text_keyword.text_keyword_detector import TextKeywordDetector
 
 # Optional imports for OCR
 try:
@@ -89,7 +89,11 @@ class OCRDetector:
         # Check OCR availability
         if not OCR_AVAILABLE:
             return self._create_error_result("OCR dependencies not installed", start_time)
-        
+
+        if not self._tesseract_ready():
+            return self._create_error_result(
+                "Tesseract OCR tidak ditemukan. Lihat docs/INSTALL_TESSERACT.md", start_time)
+
         try:
             # Load and preprocess image
             pil_image = self._load_image(image)
@@ -124,6 +128,34 @@ class OCRDetector:
             self.logger.error(f"Error in OCR detection: {e}")
             return self._create_error_result(str(e), start_time)
     
+    def _tesseract_ready(self) -> bool:
+        """True if the Tesseract executable can be run."""
+        try:
+            pytesseract.get_tesseract_version()
+            return True
+        except Exception:
+            return False
+
+    def _resolve_language(self) -> str:
+        """Use the configured languages that are installed, else English.
+
+        Tesseract fails outright if a requested language pack (e.g. `ind`)
+        is missing, so fall back instead of failing every request.
+        """
+        if getattr(self, '_resolved_language', None):
+            return self._resolved_language
+        try:
+            installed = set(pytesseract.get_languages(config=''))
+        except Exception:
+            return self.language
+        wanted = [lang for lang in self.language.split('+') if lang in installed]
+        if len(wanted) < len(self.language.split('+')):
+            self.logger.warning(
+                "Tesseract language data missing for %s; using %s",
+                self.language, '+'.join(wanted) or 'eng')
+        self._resolved_language = '+'.join(wanted) or 'eng'
+        return self._resolved_language
+
     def _load_image(self, image: Union[bytes, str, Path]) -> Optional[Any]:
         """Load image from bytes, file path, or Path object."""
         try:
@@ -177,15 +209,13 @@ class OCRDetector:
             # Configure Tesseract parameters
             custom_config = r'--oem 3 --psm 3'  # OEM 3 = LSTM, PSM 3 = Fully automatic
             
-            # Set timeout for Tesseract
-            # Note: pytesseract doesn't support timeout directly
-            # We'll implement timeout at a higher level
-            
-            # Perform OCR
+            # pytesseract kills the Tesseract process and raises RuntimeError
+            # once `timeout` seconds have passed
             text = pytesseract.image_to_string(
                 image,
-                lang=self.language,
-                config=custom_config
+                lang=self._resolve_language(),
+                config=custom_config,
+                timeout=timeout,
             )
             
             # Clean up text

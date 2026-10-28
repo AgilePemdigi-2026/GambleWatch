@@ -2,7 +2,7 @@
 
 import pytest
 
-from detection_engine.detectors.url_pattern.url_pattern_detector import URLPatternDetector
+from detection_engine.detectors.det01_url_pattern.url_pattern_detector import URLPatternDetector
 
 HIGH_RISK = [
     "https://slotgacor88.bet",

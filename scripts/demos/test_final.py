@@ -11,7 +11,7 @@ print("=" * 70)
 
 # 1. Test Text Normalizer (DET-04 component)
 print("\n1. ✅ Text Normalizer (DET-04 component)")
-from detection_engine.text.text_normalizer import TextNormalizer
+from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
 
 normalizer = TextNormalizer()
 
@@ -27,7 +27,7 @@ for text in test_texts:
 
 # 2. Test Keyword Provider (DET-04 component)
 print("\n2. ✅ Keyword Provider (DET-04 component)")
-from detection_engine.providers.keyword_provider import KeywordProvider
+from detection_engine.detectors.det04_text_keyword.keyword_provider import KeywordProvider
 
 provider = KeywordProvider()
 keywords = provider.get_keywords()
@@ -81,7 +81,7 @@ for url, expected in test_urls:
 print("\n4. ✅ Text Keyword Detector (DET-04)")
 
 def test_text_keyword(text):
-    from detection_engine.text.text_normalizer import TextNormalizer
+    from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
     
     normalizer = TextNormalizer()
     normalized = normalizer.normalize(text)

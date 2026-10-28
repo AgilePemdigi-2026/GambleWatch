@@ -1,5 +1,5 @@
 // DET-01 (URL pattern detection), ported from
-// detection_engine/detectors/url_pattern/url_pattern_detector.py.
+// detection_engine/detectors/det01_url_pattern/url_pattern_detector.py.
 // Keep the keyword lists, weights and scoring in sync with that file.
 
 export type UrlAnalysis = {
