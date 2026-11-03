@@ -83,3 +83,43 @@ def test_multimodal_pipeline_runs_all_four_detectors():
         "ocr",
         "keyword_analysis",
     }
+
+def test_multimodal_pipeline_continues_when_one_detector_fails():
+    url_detector = MockDetector(
+        DetectorType.URL_PATTERN, 0.8, "High Risk Pattern"
+    )
+    text_detector = MockDetector(
+        DetectorType.TEXT_KEYWORD, 0.7, "Keywords Found"
+    )
+    visual_detector = MockDetector(
+        DetectorType.VISUAL_SIMILARITY, 0.9, "Visual Match"
+    )
+
+    class FailingOCRDetector:
+        def detect(self, value, timeout=None):
+            raise RuntimeError("OCR test failure")
+
+    pipeline = DetectionPipeline(
+        url_detector=url_detector,
+        text_detector=text_detector,
+        ocr_detector=FailingOCRDetector(),
+        visual_detector=visual_detector,
+    )
+
+    detection_input = DetectionInput(
+        url="https://example.com",
+        screenshot=b"mock screenshot",
+        scraped={"page_text": "slot gacor"},
+    )
+
+    result = pipeline.run_all(detection_input)
+
+    results_by_detector = {
+        item.detector: item for item in result.results
+    }
+
+    assert len(result.results) == 4
+    assert results_by_detector[DetectorType.OCR].status == DetectionStatus.FAILED
+    assert results_by_detector[DetectorType.URL_PATTERN].status == DetectionStatus.OK
+    assert results_by_detector[DetectorType.TEXT_KEYWORD].status == DetectionStatus.OK
+    assert results_by_detector[DetectorType.VISUAL_SIMILARITY].status == DetectionStatus.OK
