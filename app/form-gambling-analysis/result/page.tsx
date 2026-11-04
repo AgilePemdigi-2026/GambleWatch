@@ -1,0 +1,266 @@
+'use client';
+
+import { useEffect, useState, Suspense } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+function ResultContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const analysisId = searchParams.get('id') || '1';
+
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchAnalysisResult() {
+      setLoading(true);
+      
+      const supabase = createClient();
+      
+      const { data: result, error } = await supabase
+        .from('laporan_analisis')
+        .select('*')
+        .eq('id', analysisId)
+        .single();
+
+      if (error) {
+        console.error('Fetch error:', error);
+      } else if (result) {
+        setData(result);
+      }
+      setLoading(false);
+    }
+
+    fetchAnalysisResult();
+  }, [analysisId]);
+
+  // AKSI 1: Simpan laporan dan kirim ke Admin (Update status DRAFT -> SUBMITTED)
+  const handleSaveToAdmin = async () => {
+    setActionLoading(true);
+    const supabase = createClient();
+
+    // Lakukan Update ke Supabase
+    const { data: updatedRows, error } = await supabase
+      .from('laporan_analisis')
+      .update({ status: 'SUBMITTED' })
+      .eq('id', analysisId)
+      .select();
+
+    setActionLoading(false);
+
+    if (error) {
+      console.error('Update Error:', error);
+      alert(`Gagal meng-update status: ${error.message}`);
+    } else {
+      // Update state data lokal secara instan agar UI langsung menampilkan status SUBMITTED
+      if (updatedRows && updatedRows.length > 0) {
+        setData(updatedRows[0]);
+      } else if (data) {
+        setData({ ...data, status: 'SUBMITTED' });
+      }
+
+      alert('Laporan berhasil disimpan dan dikirim ke Admin!');
+      router.push('/form-gambling-analysis');
+    }
+  };
+
+  // AKSI 2: Buang analisis (Hapus row dari Supabase)
+  const handleDiscard = async () => {
+    if (!confirm('Apakah Anda yakin ingin membuang hasil analisis ini?')) return;
+
+    setActionLoading(true);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from('laporan_analisis')
+      .delete()
+      .eq('id', analysisId);
+
+    setActionLoading(false);
+
+    if (error) {
+      console.error('Delete Error:', error);
+      alert(`Gagal menghapus laporan: ${error.message}`);
+    } else {
+      alert('Analisis berhasil dibuang.');
+      router.push('/form-gambling-analysis');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center text-[#3B1E12]">
+        <p className="font-bold text-sm animate-pulse">Memuat Hasil Analisis...</p>
+      </div>
+    );
+  }
+
+  const isPending = data?.tingkat_risiko === 'PENDING';
+  const riskLevel = data?.tingkat_risiko || 'PENDING';
+
+  const probability = isPending 
+    ? 'Proses Pemindaian...' 
+    : (typeof data?.skor_probabilitas === 'number' 
+        ? `${Math.round(data.skor_probabilitas * 100)}% Probability` 
+        : '0% Probability');
+
+  const urlPattern = data?.url_pattern_analysis || (isPending ? 'Memproses...' : 'Clean / No Pattern');
+  const visualSim = data?.visual_similarity || (isPending ? 'Memproses...' : '00% Match');
+  const ocrStatus = data?.ocr_flagged ? 'OCR Flagged' : (isPending ? 'Memproses...' : 'Clean / Clear');
+  const keywords = data?.keywords_found || (isPending ? 'Memproses...' : 'Keywords Found: None');
+
+  return (
+    <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
+      {/* Header */}
+      <div className="px-6 pt-4">
+        <header className="max-w-7xl mx-auto flex justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm">
+          <Link href="/" className="flex items-center gap-3">
+            <Image src="/logo.png" alt="GambleWatch Logo" width={36} height={36} className="object-contain" />
+            <span className="font-black text-xl tracking-wider text-[#3B1E12]">
+              GAMBLEWATCH
+            </span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-8 bg-white/70 px-8 py-2 rounded-full text-xs font-black tracking-wider uppercase text-[#3B1E12]">
+            <Link href="/" className="opacity-70 hover:opacity-100 transition-opacity">HOME</Link>
+            <Link href="/form-gambling-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">GAMBLING ANALYSIS</Link>
+            <a href="#" className="opacity-70 hover:opacity-100 transition-opacity">FEEDBACK</a>
+          </nav>
+
+          <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
+            MY ANALYSES
+          </button>
+        </header>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto my-8 px-4 w-full flex-grow">
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-3xl font-extrabold text-[#2C1810]">Analysis Results</h1>
+        </div>
+        <div className="flex items-center gap-2 mb-6">
+          <span className="text-xs text-stone-500">Analisis ID:</span>
+          <span className="bg-stone-200 text-stone-700 text-xs font-mono px-2 py-0.5 rounded">
+            {data?.id ? `ID-${data.id}` : 'ID-Unknown'}
+          </span>
+          <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
+            Status DB: {data?.status || 'UNKNOWN'}
+          </span>
+        </div>
+
+        <hr className="border-stone-300 mb-8" />
+
+        <div className="bg-[#FAF5EE] p-8 rounded-2xl border border-stone-200 text-center mb-8 shadow-sm">
+          <p className="text-[11px] font-extrabold tracking-widest text-stone-500 uppercase mb-3">
+            CLASSIFICATION STATUS
+          </p>
+          <div className="flex items-center justify-center gap-2 text-2xl font-black text-[#2C1810] mb-2">
+            <span>{isPending ? '⏳' : '⚠️'}</span>
+            <span>{riskLevel}</span>
+          </div>
+          <h2 className="text-2xl font-black text-[#3B1E12] mb-3">
+            {probability}
+          </h2>
+          <p className="text-xs text-stone-600 max-w-md mx-auto leading-relaxed">
+            URL <span className="font-semibold">{data?.url_situs || 'situs'}</span> menunjukkan indikasi yang telah dianalisis oleh sistem.
+          </p>
+        </div>
+
+        <h2 className="text-lg font-bold text-[#2C1810] mb-4">Parameter Breakdown</h2>
+        <hr className="border-stone-300 mb-6" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <div className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 flex justify-between items-start">
+            <div>
+              <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-1">URL PATTERN ANALYSIS</p>
+              <p className="text-base font-bold text-[#2C1810]">{urlPattern}</p>
+            </div>
+            <span className="text-stone-600">🔗</span>
+          </div>
+
+          <div className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 flex justify-between items-start">
+            <div>
+              <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-1">VISUAL SIMILARITY</p>
+              <p className="text-base font-bold text-[#2C1810]">{visualSim}</p>
+            </div>
+            <span className="text-stone-600">🖼️</span>
+          </div>
+
+          <div className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 flex justify-between items-start">
+            <div>
+              <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-1">IMAGE -&gt; TEXT ANALYSIS</p>
+              <p className="text-base font-bold text-[#2C1810]">{ocrStatus}</p>
+            </div>
+            <span className="text-stone-600">📑</span>
+          </div>
+
+          <div className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 flex justify-between items-start">
+            <div>
+              <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-1">TEXT / KEYWORD ANALYSIS</p>
+              <p className="text-base font-bold text-[#2C1810]">{keywords}</p>
+            </div>
+            <span className="text-stone-600">🔑</span>
+          </div>
+        </div>
+
+        <div className="bg-[#FAF5EE] p-6 rounded-2xl border border-stone-200 mb-8">
+          <h3 className="text-base font-bold text-[#2C1810] mb-2">Pilih Tindakan</h3>
+          <p className="text-xs text-stone-600 mb-6 leading-relaxed">
+            Menyimpan laporan akan mencatat URL ke dalam riwayat Anda dan secara otomatis memberi tahu administrator sistem.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button 
+              onClick={handleSaveToAdmin}
+              disabled={actionLoading || data?.status === 'SUBMITTED'}
+              className="bg-[#3B1E12] text-white px-6 py-3 rounded-full font-black text-xs tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-[#28130a] transition-all disabled:opacity-50"
+            >
+              {actionLoading 
+                ? 'MENYIMPAN...' 
+                : data?.status === 'SUBMITTED' 
+                  ? '✅ REPORT SUBMITTED' 
+                  : '💾 SAVE TO HISTORY & ALERT ADMIN'}
+            </button>
+            <button 
+              onClick={handleDiscard}
+              disabled={actionLoading}
+              className="bg-white border border-stone-400 text-[#3B1E12] px-6 py-3 rounded-full font-black text-xs tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-stone-50 transition-all text-center disabled:opacity-50"
+            >
+              {actionLoading ? 'MENGHAPUS...' : '🗑️ DISCARD ANALYSIS'}
+            </button>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
+          <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI)</p>
+          <div className="flex items-center gap-6">
+            <a href="#">About Web</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#" className="bg-white border border-stone-300 text-stone-800 px-5 py-2 rounded-full font-semibold shadow-sm">
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+export default function ResultGamblingAnalysisPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center text-[#3B1E12]">
+        <p className="font-bold text-sm animate-pulse">Loading Result Page...</p>
+      </div>
+    }>
+      <ResultContent />
+    </Suspense>
+  );
+}
