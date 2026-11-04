@@ -1,172 +1,139 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('beranda');
-  const [loading, setLoading] = useState(true);
 
-  // State untuk 5 Stat Cards
-  const [statsData, setStatsData] = useState({
-    totalLaporan: 0,
-    berisikoTinggi: 0,
-    menungguTinjauan: 0,
-    situsDiblokir: 0,
-    scrapingAktif: 0,
-  });
-
-  // State untuk Tren Deteksi Bulanan
-  const [monthlyCounts, setMonthlyCounts] = useState<{ [key: number]: number }>({
-    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0,
-  });
-
-  const supabase = createClient();
-
-  useEffect(() => {
-    async function fetchDashboardData() {
-      setLoading(true);
-      try {
-        // 1. Fetch Total Laporan
-        const { count: totalCount } = await supabase
-          .from('laporan_analisis')
-          .select('*', { count: 'exact', head: true });
-
-        // 2. Fetch Situs Berisiko Tinggi
-        const { count: highRiskCount } = await supabase
-          .from('laporan_analisis')
-          .select('*', { count: 'exact', head: true })
-          .eq('tingkat_risiko', 'HIGH RISK');
-
-        // 3. Fetch Menunggu Tinjauan
-        const { count: pendingCount } = await supabase
-          .from('laporan_analisis')
-          .select('*', { count: 'exact', head: true })
-          .eq('tingkat_risiko', 'PENDING');
-
-        // 4. Fetch Situs Diblokir
-        const { count: blockedCount } = await supabase
-          .from('laporan_analisis')
-          .select('*', { count: 'exact', head: true })
-          .eq('tingkat_risiko', 'BLOCKED');
-
-        // 5. Fetch Log Scraping
-        const { count: scrapingCount } = await supabase
-          .from('web_scraping_log')
-          .select('*', { count: 'exact', head: true });
-
-        setStatsData({
-          totalLaporan: totalCount || 0,
-          berisikoTinggi: highRiskCount || 0,
-          menungguTinjauan: pendingCount || 0,
-          situsDiblokir: blockedCount || 0,
-          scrapingAktif: scrapingCount || 0,
-        });
-
-        // 6. Fetch Data created_at untuk Grafik Tren Bulanan
-        const { data: records, error } = await supabase
-          .from('laporan_analisis')
-          .select('created_at');
-
-        if (!error && records) {
-          const counts: { [key: number]: number } = {
-            0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0,
-          };
-
-          records.forEach((row) => {
-            if (row.created_at) {
-              const monthIndex = new Date(row.created_at).getMonth(); // 0 = Jan, 9 = Okt, 10 = Nov
-              counts[monthIndex] = (counts[monthIndex] || 0) + 1;
-            }
-          });
-
-          setMonthlyCounts(counts);
-        }
-      } catch (error) {
-        console.error('Error fetching admin dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchDashboardData();
-  }, []);
-
-  // Format array 6 bulan terakhir / bulan terpilih (Juni - November)
-  const monthList = [
-    { name: 'Jun', index: 5 },
-    { name: 'Jul', index: 6 },
-    { name: 'Agu', index: 7 },
-    { name: 'Sep', index: 8 },
-    { name: 'Okt', index: 9 },
-    { name: 'Nov', index: 10 },
-  ];
-
-  // Cari angka tertinggi untuk menghitung persentase tinggi batang grafik secara presisi
-  const maxVal = Math.max(...monthList.map((m) => monthlyCounts[m.index] || 0), 1);
-
+  // Stat Cards Data
   const stats = [
     {
       title: 'Total laporan',
-      value: loading ? '...' : (statsData.totalLaporan ?? 0).toLocaleString(),
+      value: '1,247',
       subtitle: 'Laporan yang diterima',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-      ),
+      )
     },
     {
       title: 'Situs berisiko tinggi',
-      value: loading ? '...' : (statsData.berisikoTinggi ?? 0).toLocaleString(),
+      value: '89',
       subtitle: 'Perlu perhatian khusus',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
-      ),
+      )
     },
     {
       title: 'Menunggu tinjauan',
-      value: loading ? '...' : (statsData.menungguTinjauan ?? 0).toLocaleString(),
+      value: '34',
       subtitle: 'Dalam antrean verifikasi',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-      ),
+      )
     },
     {
       title: 'Situs diblokir',
-      value: loading ? '...' : (statsData.situsDiblokir ?? 0).toLocaleString(),
+      value: '156',
       subtitle: 'Pemblokiran dilakukan',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
-      ),
+      )
     },
     {
       title: 'Scraping aktif',
-      value: loading ? '...' : (statsData.scrapingAktif ?? 0).toLocaleString(),
+      value: '12',
       subtitle: 'Pekerjaan pengumpulan data',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
         </svg>
-      ),
+      )
     },
   ];
 
+  // Quick Access Routing List
   const quickAccess = [
-    { title: 'Hasil klasifikasi', desc: 'Tinjau klasifikasi situs', href: '/admin/classification', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>) },
-    { title: 'Status laporan', desc: 'Lacak tindak lanjut', href: '/admin/report-status', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>) },
-    { title: 'Monitor scraping', desc: 'Pantau pengumpulan data', href: '/admin/scraping', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>) },
-    { title: 'Peringatan dini', desc: 'Periksa indikasi risiko', href: '/admin/early-warning', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>) },
-    { title: 'Umpan balik', desc: 'Tinjau masukan publik', href: '/admin/feedback', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>) },
-    { title: 'Database kata kunci', desc: 'Kelola kata kunci deteksi', href: '/admin/keywords', icon: (<svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>) },
+    {
+      title: 'Hasil klasifikasi',
+      desc: 'Tinjau klasifikasi situs',
+      href: '/admin/classification',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      )
+    },
+    {
+      title: 'Status laporan',
+      desc: 'Lacak tindak lanjut',
+      href: '/admin/report-status',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      )
+    },
+    {
+      title: 'Monitor scraping',
+      desc: 'Pantau pengumpulan data',
+      href: '/admin/scraping',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
+    {
+      title: 'Peringatan dini',
+      desc: 'Periksa indikasi risiko',
+      href: '/admin/early-warning',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      )
+    },
+    {
+      title: 'Umpan balik',
+      desc: 'Tinjau masukan publik',
+      href: '/admin/feedback',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      )
+    },
+    {
+      title: 'Database kata kunci',
+      desc: 'Kelola kata kunci deteksi',
+      href: '/admin/keywords',
+      icon: (
+        <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+        </svg>
+      )
+    },
+  ];
+
+  // Bar Chart Data
+  const chartData = [
+    { month: 'Jan', height: '28%' },
+    { month: 'Feb', height: '48%' },
+    { month: 'Mar', height: '58%' },
+    { month: 'Apr', height: '72%' },
+    { month: 'Mei', height: '62%' },
+    { month: 'Jun', height: '82%' },
+    { month: 'Jul', height: '92%' },
   ];
 
   return (
@@ -277,7 +244,7 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Terdeteksi peningkatan aktivitas perjudian ilegal dalam 24 jam terakhir. Tindakan segera diperlukan.
+                  Terdeteksi peningkatan 42% aktivitas perjudian ilegal dalam 24 jam terakhir di 3 domain. Tindakan segera diperlukan.
                 </p>
               </div>
             </div>
@@ -318,14 +285,14 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Detection Trend Chart (Dinamis Real-Time) */}
+        {/* Detection Trend Chart */}
         <div className="mb-8">
           <h2 className="text-base font-extrabold text-[#2C1810] mb-3">Tren deteksi</h2>
           <div className="bg-[#FAF5EE] p-6 rounded-2xl border border-[#E2D7C7] shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="font-bold text-sm text-[#2C1810]">Jumlah deteksi per bulan</h3>
-                <p className="text-[11px] text-stone-500">Periode Juni – November</p>
+                <p className="text-[11px] text-stone-500">Periode Januari – Juli</p>
               </div>
               <span className="text-xs text-stone-600 font-medium">Deteksi situs</span>
             </div>
@@ -333,32 +300,21 @@ export default function AdminDashboardPage() {
             {/* Bar Chart Graphics */}
             <div className="h-52 flex items-end justify-between gap-4 pt-8 px-6 border-b-2 border-[#3B1E12] relative">
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-stone-400 py-2">
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">{maxVal}</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">{Math.round(maxVal * 0.66)}</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">{Math.round(maxVal * 0.33)}</span></div>
+                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">180</span></div>
+                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">120</span></div>
+                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">60</span></div>
                 <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">0</span></div>
               </div>
 
-              {monthList.map((m, index) => {
-                const count = monthlyCounts[m.index] || 0;
-                // Hitung tinggi batang grafik (minimal 4% kalau ada data 0 biar rapi)
-                const heightPercent = count > 0 ? Math.max((count / maxVal) * 100, 10) : 4;
-
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center h-full justify-end z-10 group relative">
-                    {/* Tooltip Hover jumlah riil */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#3B1E12] text-white text-[10px] font-bold px-2 py-0.5 rounded absolute -top-4 pointer-events-none whitespace-nowrap shadow-xs">
-                      {count} Laporan
-                    </div>
-
-                    <div 
-                      className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-sm hover:bg-[#28130a] transition-all shadow-xs" 
-                      style={{ height: `${heightPercent}%` }}
-                    ></div>
-                    <span className="text-xs text-[#2C1810] font-bold mt-3">{m.name}</span>
-                  </div>
-                );
-              })}
+              {chartData.map((item, index) => (
+                <div key={index} className="flex-1 flex flex-col items-center h-full justify-end z-10">
+                  <div 
+                    className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-sm hover:bg-[#28130a] transition-all shadow-xs" 
+                    style={{ height: item.height }}
+                  ></div>
+                  <span className="text-xs text-[#2C1810] font-bold mt-3">{item.month}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
