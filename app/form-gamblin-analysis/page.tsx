@@ -75,7 +75,7 @@ export default function FormGamblingAnalysisPage() {
 
       // Pindah ke halaman result membawa ID asli dari Supabase
       if (data) {
-        router.push(`/form-gambling-analysis/result?id=${data.id}`);
+        router.push(`/form-gamblin-analysis/result?id=${data.id}`);
       }
 
     } catch (err: any) {
@@ -101,7 +101,7 @@ export default function FormGamblingAnalysisPage() {
             <Link href="/" className="opacity-70 hover:opacity-100 transition-opacity">
               HOME
             </Link>
-            <Link href="/form-gambling-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">
+            <Link href="/form-gamblin-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">
               GAMBLING ANALYSIS
             </Link>
             <a href="#" className="opacity-70 hover:opacity-100 transition-opacity">
