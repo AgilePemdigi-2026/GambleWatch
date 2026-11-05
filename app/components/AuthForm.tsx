@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -16,13 +17,12 @@ type AuthFormProps = {
 };
 
 const inputClass =
-  'w-full rounded-full border border-[#a08e7f] bg-white px-4 py-3 outline-none';
+  'w-full rounded-full border border-[#a08e7f] bg-white px-4 py-3 outline-none focus:border-[#492b19]';
 
 export default function AuthForm({
   mode,
   title,
   subtitle,
-  identifierLabel = 'EMAIL',
   identifierPlaceholder = 'Masukkan Email',
   footer,
   defaultRole = 'masyarakat',
@@ -51,16 +51,17 @@ export default function AuthForm({
     try {
       const supabase = createClient();
 
-      if (!identifier.trim() || !password) {
+      const email = identifier.trim().toLowerCase();
+
+      if (!email || !password) {
         setErrorMsg('Email dan password wajib diisi.');
         return;
       }
 
       if (isSignUp) {
-        // Pendaftaran admin tidak boleh dilakukan secara publik
         if (defaultRole === 'admin') {
           setErrorMsg(
-            'Pendaftaran admin harus dilakukan melalui pengaturan administrator.'
+            'Pendaftaran admin harus dilakukan melalui administrator.'
           );
           return;
         }
@@ -81,19 +82,17 @@ export default function AuthForm({
         }
 
         const { data, error } = await supabase.auth.signUp({
-          email: identifier.trim().toLowerCase(),
+          email,
           password,
           options: {
             data: {
               full_name: fullName.trim(),
             },
+            emailRedirectTo: `${window.location.origin}/sign-in/sign-in-masyarakat`,
           },
         });
 
-        if (error) {
-          setErrorMsg(error.message);
-          return;
-        }
+        if (error) throw error;
 
         if (data.session) {
           setSuccessMsg('Pendaftaran berhasil! Mengalihkan ke halaman login...');
@@ -105,30 +104,49 @@ export default function AuthForm({
             'Pendaftaran berhasil! Silakan periksa email untuk melakukan konfirmasi akun sebelum login.'
           );
         }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: identifier.trim().toLowerCase(),
-          password,
-        });
 
-        if (error) {
-          setErrorMsg('Email atau password salah.');
-          return;
-        }
-
-        const userRole = data.user.app_metadata?.role;
-
-        if (userRole === 'admin') {
-          router.replace('/admin');
-        } else {
-          router.replace('/form-gamblin-analysis');
-        }
-
-        router.refresh();
+        return;
       }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw new Error('Email atau password salah.');
+      }
+
+      const userRole = data.user.app_metadata?.role;
+
+      if (defaultRole === 'admin' && userRole !== 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Akun ini bukan akun administrator.');
+      }
+
+      if (defaultRole === 'masyarakat' && userRole === 'admin') {
+        await supabase.auth.signOut();
+        throw new Error(
+          'Silakan masuk melalui halaman login administrator.'
+        );
+      }
+
+      if (userRole === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/form-gamblin-analysis');
+      }
+
+      router.refresh();
+
     } catch (error) {
       console.error('Authentication error:', error);
-      setErrorMsg('Terjadi kesalahan saat menghubungkan ke server.');
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Terjadi kesalahan saat menghubungkan ke server.'
+      );
     } finally {
       setLoading(false);
     }
@@ -137,9 +155,10 @@ export default function AuthForm({
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f8f5ef] p-6">
       <section className="w-full max-w-md rounded-3xl bg-[#f5efe5] p-8 shadow-sm">
-        <a href="/" className="text-xl font-black text-[#492b19]">
+
+        <Link href="/" className="text-xl font-black text-[#492b19]">
           GAMBLEWATCH
-        </a>
+        </Link>
 
         <h1 className="mt-8 text-2xl font-bold text-[#492b19]">
           {title}
@@ -150,6 +169,7 @@ export default function AuthForm({
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+
           {errorMsg && (
             <div
               role="alert"
@@ -170,10 +190,7 @@ export default function AuthForm({
 
           {isSignUp && (
             <div>
-              <label
-                htmlFor="name"
-                className="mb-2 block text-sm font-bold"
-              >
+              <label htmlFor="name" className="mb-2 block text-sm font-bold">
                 NAMA LENGKAP
               </label>
 
@@ -190,10 +207,7 @@ export default function AuthForm({
           )}
 
           <div>
-            <label
-              htmlFor="identifier"
-              className="mb-2 block text-sm font-bold"
-            >
+            <label htmlFor="identifier" className="mb-2 block text-sm font-bold">
               EMAIL
             </label>
 
@@ -210,10 +224,7 @@ export default function AuthForm({
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="mb-2 block text-sm font-bold"
-            >
+            <label htmlFor="password" className="mb-2 block text-sm font-bold">
               PASSWORD
             </label>
 
@@ -232,10 +243,7 @@ export default function AuthForm({
 
           {isSignUp && (
             <div>
-              <label
-                htmlFor="confirm"
-                className="mb-2 block text-sm font-bold"
-              >
+              <label htmlFor="confirm" className="mb-2 block text-sm font-bold">
                 KONFIRMASI PASSWORD
               </label>
 
@@ -252,6 +260,17 @@ export default function AuthForm({
             </div>
           )}
 
+          {!isSignUp && (
+            <div className="text-right">
+              <Link
+                href="/forgot-password"
+                className="text-xs font-bold text-[#a63c0b] underline"
+              >
+                Lupa Kata Sandi?
+              </Link>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -263,6 +282,7 @@ export default function AuthForm({
                 ? 'DAFTAR →'
                 : 'MASUK →'}
           </button>
+
         </form>
 
         {footer && (
@@ -270,6 +290,7 @@ export default function AuthForm({
             {footer}
           </p>
         )}
+
       </section>
     </main>
   );
