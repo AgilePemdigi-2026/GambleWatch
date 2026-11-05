@@ -1,17 +1,88 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('beranda');
+  const [loading, setLoading] = useState(true);
 
-  // Stat Cards Data
+  // 1. State 5 Stat Cards dari Supabase
+  const [statsData, setStatsData] = useState({
+    totalLaporan: 0,
+    situsBerisiko: 0,
+    menungguTinjauan: 0,
+    situsDiblokir: 0,
+    scrapingAktif: 0,
+  });
+
+  // 2. State Grafik Tren Deteksi Per Bulan murni dari DB (Juni - November: Indeks 5 - 10)
+  const [chartCounts, setChartCounts] = useState<{ [key: number]: number }>({
+    5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0
+  });
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchDashboardBackendData() {
+      setLoading(true);
+      try {
+        // Query parallel ke tabel-tabel Supabase
+        const [
+          { count: totalLaporanCount },
+          { count: berisikoCount },
+          { count: tinjauanCount },
+          { count: diblokirCount },
+          { count: scrapingCount },
+          { data: allRecords }
+        ] = await Promise.all([
+          supabase.from('laporan_analisis').select('*', { count: 'exact', head: true }),
+          supabase.from('laporan_analisis').select('*', { count: 'exact', head: true }).eq('tingkat_risiko', 'HIGH RISK'),
+          supabase.from('laporan_analisis').select('*', { count: 'exact', head: true }).eq('tingkat_risiko', 'PENDING'),
+          supabase.from('situs_diblokir').select('*', { count: 'exact', head: true }),
+          supabase.from('scraping_jobs').select('*', { count: 'exact', head: true }),
+          supabase.from('laporan_analisis').select('created_at')
+        ]);
+
+        // Set State Stat Cards (Pakai angka DB asli, fallback ke 0 jika kosong)
+        setStatsData({
+          totalLaporan: totalLaporanCount || 0,
+          situsBerisiko: berisikoCount || 0,
+          menungguTinjauan: tinjauanCount || 0,
+          situsDiblokir: diblokirCount || 0,
+          scrapingAktif: scrapingCount || 0,
+        });
+
+        // Hitung data MURNI Supabase per bulan (Juni s/d November 2026)
+        if (allRecords) {
+          const counts: { [key: number]: number } = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+          allRecords.forEach((row) => {
+            if (row.created_at) {
+              const monthIdx = new Date(row.created_at).getMonth();
+              if (monthIdx >= 5 && monthIdx <= 10) {
+                counts[monthIdx] = (counts[monthIdx] || 0) + 1;
+              }
+            }
+          });
+          setChartCounts(counts);
+        }
+      } catch (err) {
+        console.error('Error fetching admin dashboard data from Supabase:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardBackendData();
+  }, []);
+
+  // Mapping Stat Cards
   const stats = [
     {
       title: 'Total laporan',
-      value: '1,247',
+      value: loading ? '...' : statsData.totalLaporan.toLocaleString('id-ID'),
       subtitle: 'Laporan yang diterima',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,7 +92,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Situs berisiko tinggi',
-      value: '89',
+      value: loading ? '...' : statsData.situsBerisiko.toLocaleString('id-ID'),
       subtitle: 'Perlu perhatian khusus',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,7 +102,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Menunggu tinjauan',
-      value: '34',
+      value: loading ? '...' : statsData.menungguTinjauan.toLocaleString('id-ID'),
       subtitle: 'Dalam antrean verifikasi',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +112,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Situs diblokir',
-      value: '156',
+      value: loading ? '...' : statsData.situsDiblokir.toLocaleString('id-ID'),
       subtitle: 'Pemblokiran dilakukan',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,7 +122,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Scraping aktif',
-      value: '12',
+      value: loading ? '...' : statsData.scrapingAktif.toLocaleString('id-ID'),
       subtitle: 'Pekerjaan pengumpulan data',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,16 +196,17 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  // Bar Chart Data
-  const chartData = [
-    { month: 'Jan', height: '28%' },
-    { month: 'Feb', height: '48%' },
-    { month: 'Mar', height: '58%' },
-    { month: 'Apr', height: '72%' },
-    { month: 'Mei', height: '62%' },
-    { month: 'Jun', height: '82%' },
-    { month: 'Jul', height: '92%' },
+  // Config Bulan Juni - November (Sesuai EWR)
+  const monthList = [
+    { name: 'Jun', index: 5 },
+    { name: 'Jul', index: 6 },
+    { name: 'Agu', index: 7 },
+    { name: 'Sep', index: 8 },
+    { name: 'Okt', index: 9 },
+    { name: 'Nov', index: 10 },
   ];
+
+  const maxChartVal = Math.max(...Object.values(chartCounts), 1);
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
@@ -164,7 +236,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link 
-              href="/admin/gambling-analysis" 
+              href="/admin/early-warning" 
               onClick={() => setActiveTab('analisis')}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full transition-all ${activeTab === 'analisis' ? 'bg-[#F7F2EB] font-black border border-stone-300' : 'opacity-70 hover:opacity-100'}`}
             >
@@ -222,7 +294,7 @@ export default function AdminDashboardPage() {
           ))}
         </div>
 
-        {/* Early Warning Alert Section */}
+        {/* Early Warning Alert Section (Redirects Directly to /admin/early-warning) */}
         <div className="mb-10">
           <div className="flex justify-between items-center mb-3">
             <h2 className="text-base font-extrabold text-[#2C1810]">Peringatan dini</h2>
@@ -244,11 +316,12 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Terdeteksi peningkatan 42% aktivitas perjudian ilegal dalam 24 jam terakhir di 3 domain. Tindakan segera diperlukan.
+                  Terdeteksi peningkatan aktivitas perjudian ilegal dalam 24 jam terakhir. Tindakan segera diperlukan.
                 </p>
               </div>
             </div>
 
+            {/* Klik tombol langsung mengarah ke modul /admin/early-warning */}
             <Link 
               href="/admin/early-warning" 
               className="bg-white border border-stone-400 text-[#3B1E12] px-6 py-2.5 rounded-full font-bold text-xs hover:bg-stone-50 transition-all whitespace-nowrap shadow-xs flex items-center gap-1.5"
@@ -285,36 +358,58 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Detection Trend Chart */}
+        {/* Detection Trend Chart (Terkoneksi Backend Real-time: Juni – November 2026) */}
         <div className="mb-8">
           <h2 className="text-base font-extrabold text-[#2C1810] mb-3">Tren deteksi</h2>
           <div className="bg-[#FAF5EE] p-6 rounded-2xl border border-[#E2D7C7] shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="font-bold text-sm text-[#2C1810]">Jumlah deteksi per bulan</h3>
-                <p className="text-[11px] text-stone-500">Periode Januari – Juli</p>
+                <p className="text-[11px] text-stone-500">Periode Juni – November 2026</p>
               </div>
               <span className="text-xs text-stone-600 font-medium">Deteksi situs</span>
             </div>
 
-            {/* Bar Chart Graphics */}
-            <div className="h-52 flex items-end justify-between gap-4 pt-8 px-6 border-b-2 border-[#3B1E12] relative">
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-stone-400 py-2">
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">180</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">120</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">60</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">0</span></div>
+            {/* Bar Chart Graphics Murni dari Supabase */}
+            <div className="h-56 flex items-end justify-between gap-3 pt-8 px-8 border-b-2 border-[#3B1E12] relative ml-6">
+              {/* Sumbu Y (Angka Kiri) */}
+              <div className="absolute inset-y-0 -left-8 flex flex-col justify-between pointer-events-none text-[10px] text-stone-500 font-mono font-bold pb-7 pt-6">
+                <span>{maxChartVal}</span>
+                <span>{Math.round(maxChartVal * 0.66)}</span>
+                <span>{Math.round(maxChartVal * 0.33)}</span>
+                <span>0</span>
               </div>
 
-              {chartData.map((item, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center h-full justify-end z-10">
-                  <div 
-                    className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-sm hover:bg-[#28130a] transition-all shadow-xs" 
-                    style={{ height: item.height }}
-                  ></div>
-                  <span className="text-xs text-[#2C1810] font-bold mt-3">{item.month}</span>
-                </div>
-              ))}
+              {/* Garis Grid Horizontal */}
+              <div className="absolute inset-x-0 top-8 bottom-7 flex flex-col justify-between pointer-events-none">
+                <div className="border-b border-stone-300 border-dashed w-full"></div>
+                <div className="border-b border-stone-300 border-dashed w-full"></div>
+                <div className="border-b border-stone-300 border-dashed w-full"></div>
+                <div className="border-b border-stone-300 border-dashed w-full"></div>
+              </div>
+
+              {/* Batang Grafik (Ketinggian Presisi Murni Dari DB Supabase) */}
+              {monthList.map((m) => {
+                const count = chartCounts[m.index] || 0;
+                const barHeight = maxChartVal > 0 && count > 0 
+                  ? `${Math.max((count / maxChartVal) * 100, 10)}%` 
+                  : '4px';
+
+                return (
+                  <div key={m.index} className="flex-1 flex flex-col items-center h-full justify-end z-10 group">
+                    <div 
+                      className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-md group-hover:bg-[#5C3220] transition-all duration-300 shadow-xs relative" 
+                      style={{ height: barHeight }}
+                    >
+                      {/* Tooltip Hover Angka Asli DB */}
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 left-1/2 -translate-x-1/2 bg-[#3B1E12] text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-xs whitespace-nowrap font-mono">
+                        {count}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[#2C1810] font-bold mt-3">{m.name}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
