@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { toLaporanFields, type DetectionSummary } from '@/lib/detection/analysis';
 
 export default function FormGamblingAnalysisPage() {
   const router = useRouter();
@@ -23,10 +24,25 @@ export default function FormGamblingAnalysisPage() {
     setErrorMsg('');
 
     try {
+      // 1. Jalankan deteksi (DET-06) lebih dulu, supaya tidak ada gambar
+      //    tersimpan bila analisis gagal.
+      const form = new FormData();
+      if (url.trim()) form.set('url', url.trim());
+      if (file) form.set('screenshot', file);
+
+      const analysisRes = await fetch('/api/analyze', { method: 'POST', body: form });
+      const analysis = await analysisRes.json().catch(() => null);
+      if (!analysisRes.ok || !analysis?.success) {
+        setErrorMsg(analysis?.message ?? 'Gagal melakukan analisis. Silakan coba lagi.');
+        setLoading(false);
+        return;
+      }
+      const detection = toLaporanFields(analysis.summary as DetectionSummary);
+
       const supabase = createClient();
       let imageUrl = '';
 
-      // 1. Upload File ke Supabase Storage jika ada file yang diunggah
+      // 2. Upload File ke Supabase Storage jika ada file yang diunggah
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -51,15 +67,14 @@ export default function FormGamblingAnalysisPage() {
         imageUrl = publicUrlData.publicUrl;
       }
 
-      // 2. INSERT data baru ke tabel laporan_analisis dengan kolom bukti_screenshot
+      // 3. INSERT hasil deteksi ke tabel laporan_analisis
       const { data, error } = await supabase
         .from('laporan_analisis')
         .insert([
           {
-            url_situs: url || 'Screenshot Uploaded',
+            url_situs: analysis.url || 'Screenshot Uploaded',
             bukti_screenshot: imageUrl || null,
-            tingkat_risiko: 'PENDING',
-            skor_probabilitas: 0.0,
+            ...detection,
             status: 'DRAFT'
           }
         ])

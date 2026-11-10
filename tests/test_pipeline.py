@@ -1,5 +1,6 @@
 """Pipeline: combined score, Rendah/Sedang/Tinggi indication, timeouts."""
 
+import json
 import time
 
 import pytest
@@ -14,6 +15,30 @@ from detection_engine.pipeline import DetectionPipeline
 def result(detector, score, status=DetectionStatus.OK):
     return DetectionResult(detector=detector, status=status, label="x",
                            score=score, duration_ms=1)
+
+
+class SlowReportingDetector:
+    """Returns at once but reports a long duration, like a detector that ran in parallel."""
+
+    def __init__(self, detector_type):
+        self.detector_type = detector_type
+
+    def detect(self, value, timeout=None):
+        return DetectionResult(detector=self.detector_type, status=DetectionStatus.OK,
+                               label="x", score=0.1, duration_ms=5000)
+
+
+def test_processing_time_is_wall_clock_not_the_sum_of_detectors():
+    """Detektor berjalan paralel; waktu proses = waktu nyata, bukan jumlah durasi."""
+    pipeline = DetectionPipeline(
+        url_detector=SlowReportingDetector(DetectorType.URL_PATTERN),
+        text_detector=SlowReportingDetector(DetectorType.TEXT_KEYWORD),
+        ocr_detector=SlowReportingDetector(DetectorType.OCR),
+        visual_detector=SlowReportingDetector(DetectorType.VISUAL_SIMILARITY),
+    )
+    summary = pipeline.get_summary(pipeline.run_all(DetectionInput(
+        url="https://contoh.example", screenshot=b"x", scraped={"page_text": "teks"})))
+    assert summary["processing_time_ms"] < 5000
 
 
 def test_combine_scores_ignores_detectors_that_did_not_run():
@@ -79,6 +104,16 @@ def test_gambling_site_is_tinggi(pipeline):
         "url_pattern", "visual_similarity", "ocr", "keyword_analysis"}
     assert summary["modules"]["url_pattern"]["score"] > 0.8
     assert summary["modules"]["visual_similarity"]["status"] == "skipped"
+
+
+def test_summary_lists_what_each_module_found(pipeline):
+    """Result pages show why a site scored high: matched URL rules and keywords."""
+    summary = run(pipeline, "https://slotgacor88.bet", "Daftar slot gacor, bonus new member")
+    modules = summary["modules"]
+    assert any(".bet" in f for f in modules["url_pattern"]["findings"])
+    assert "slot" in modules["keyword_analysis"]["findings"]
+    assert modules["visual_similarity"]["findings"] == []   # skipped: no screenshot
+    json.dumps(summary)                                     # API must be able to serialise it
 
 
 def test_normal_site_is_rendah(pipeline):
