@@ -120,7 +120,10 @@ class TextKeywordDetector:
 
         # Exact matching first
         for keyword in keywords:
-            positions = self._find_all_positions(text, keyword.term)
+            # Other spellings ("alexis 17", "jodol") count as the keyword itself
+            spellings = {keyword.term, *(keyword.variations or []), *(keyword.aliases or [])}
+            positions = sorted({p for spelling in spellings if spelling.strip()
+                                for p in self._find_all_positions(text, spelling)})
             if positions:
                 exact_terms.add(keyword.term)
                 matches.append({
@@ -137,7 +140,10 @@ class TextKeywordDetector:
                 k for k in keywords
                 if k.term not in exact_terms and len(k.term) >= self.MIN_FUZZY_LENGTH
             ]
-            matches.extend(self._fuzzy_match(text, candidates, timeout))
+            # A word that is itself a keyword ("bandar") is not a typo of a
+            # longer one ("bandarq"); it is matched, or not, on its own.
+            known = {k.term.lower() for k in keywords}
+            matches.extend(self._fuzzy_match(text, candidates, timeout, exclude=known))
 
         return matches
 
@@ -145,8 +151,11 @@ class TextKeywordDetector:
     # match "alphabet"); longer terms may appear inside compound words
     # ("togelonline", "slotgacor").
     WHOLE_WORD_MAX_LENGTH = 4
-    # Shorter terms produce too many false fuzzy matches
-    MIN_FUZZY_LENGTH = 6
+    # Shorter terms produce too many false fuzzy matches: every 6-letter
+    # keyword has everyday words one letter away ("sabung" ~ "sabun",
+    # "sambung"; "kasino" ~ "kasih"). Disguised short keywords are still
+    # caught exactly after leetspeak normalisation ("k4sino" -> "kasino").
+    MIN_FUZZY_LENGTH = 7
     # Keywords at or above this weight get the repetition bonus
     STRONG_KEYWORD_WEIGHT = 0.6
 
@@ -165,8 +174,8 @@ class TextKeywordDetector:
         """Find all positions of term in (already lowercase) text."""
         return [m.start() for m in self._term_pattern(term).finditer(text)]
     
-    def _fuzzy_match(self, text: str, keywords: List[GamblingKeyword], 
-                     timeout: float) -> List[Dict[str, Any]]:
+    def _fuzzy_match(self, text: str, keywords: List[GamblingKeyword],
+                     timeout: float, exclude: Optional[set] = None) -> List[Dict[str, Any]]:
         """Catch typos of single-word keywords by comparing whole words.
 
         Words are compared with the keyword, and only words within one letter
@@ -176,10 +185,15 @@ class TextKeywordDetector:
         as a real one-letter typo of "taruhan". Whole-word comparison tells
         them apart: "taruhn" and "tarruhan" match, "dipertaruhkan" cannot.
         Multi-word keywords are not fuzzy-matched.
+
+        The candidate word must also start with the keyword's first letter.
+        Disguised keywords keep their first letter ("taruhn", "jackpott"),
+        while ordinary words one letter away usually differ right there:
+        "setting" and "getting" are not typos of "betting".
         """
         matches = []
         by_length: Dict[int, List[str]] = {}
-        for word in set(re.findall(r'[a-z]{4,}', text)):
+        for word in set(re.findall(r'[a-z]{4,}', text)) - (exclude or set()):
             by_length.setdefault(len(word), []).append(word)
 
         try:
@@ -188,7 +202,7 @@ class TextKeywordDetector:
                 if ' ' in term:
                     continue
                 candidates = [w for n in (len(term) - 1, len(term), len(term) + 1)
-                              for w in by_length.get(n, ())]
+                              for w in by_length.get(n, ()) if w[0] == term[0]]
                 if not candidates:
                     continue
                 best = process.extractOne(term, candidates, scorer=fuzz.ratio,
@@ -244,6 +258,9 @@ class TextKeywordDetector:
         'freebet', 'free spin', 'scatter', 'link alternatif', 'rtp live', 'rtp slot',
         'daftar sekarang', 'situs resmi', 'gampang menang', 'anti rungkad', 'pola gacor',
         'tanpa potongan', 'deposit pulsa', 'bocoran', 'welcome bonus',
+        'scatter hitam', 'jam gacor', 'pola slot', 'rtp gacor', 'modal receh', 'depo receh',
+        'auto wd', 'wd lancar', 'gampang maxwin', 'bonus rollingan', 'slot thailand',
+        'server thailand', 'akun pro', 'situs gacor', 'link gacor', 'slot dana', 'depo dana',
     )
     INFO_CUES = (
         'diblokir', 'pemblokiran', 'memblokir', 'blokir', 'polisi', 'polri', 'bareskrim',

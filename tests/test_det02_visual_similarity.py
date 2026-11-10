@@ -80,6 +80,24 @@ def test_unrelated_screenshot_does_not_match(index_path):
     assert result.score < 0.7
 
 
+def test_similarity_below_the_threshold_adds_nothing_to_the_score(index_path):
+    """'No Visual Match' tidak boleh tetap menyumbang skor ke hasil gabungan.
+
+    Kemiripan mentah tetap dicatat di evidence sebagai bukti.
+    """
+    detector = VisualSimilarityDetector(index_path=index_path)
+    result = detector.detect(to_jpeg(make_site_screenshot(2)))
+    assert result.label == "No Visual Match"
+    assert result.score == 0.0
+    assert 0.0 <= result.evidence["similarity"] < detector.match_threshold
+
+
+def test_matching_screenshot_keeps_its_similarity_as_score(index_path):
+    detector = VisualSimilarityDetector(index_path=index_path)
+    result = detector.detect(to_jpeg(make_site_screenshot(0), quality=50, scale=0.7))
+    assert result.score == result.evidence["similarity"] >= detector.match_threshold
+
+
 def test_missing_index_is_skipped_not_failed(tmp_path):
     detector = VisualSimilarityDetector(index_path=tmp_path / "nope.npz")
     result = detector.detect(to_jpeg(make_site_screenshot(0)))

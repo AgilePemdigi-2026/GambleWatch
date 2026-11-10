@@ -148,6 +148,20 @@ def test_a_related_word_is_not_a_fuzzy_match(detector):
     assert detector.detect(text).label == "No Keywords"
 
 
+FILLER = " Halaman ini berisi informasi umum untuk pelanggan kami di seluruh Indonesia."
+
+
+@pytest.mark.parametrize("text", [
+    "Getting started: open Settings to change your account preferences.",  # betting
+    "Jual sabun cuci muka dan sabun mandi murah, gratis ongkir.",           # sabung
+    "Kabel internet sudah tersambung, sambung ulang router bila putus.",    # sabung
+])
+def test_common_words_close_to_a_keyword_are_not_fuzzy_matches(detector, text):
+    """Kata umum yang beda satu huruf dari kata kunci bukan salah ketik kata kunci."""
+    result = detector.detect(text + FILLER)
+    assert result.label == "No Keywords", result.evidence["keywords_found"]
+
+
 def test_a_one_letter_typo_is_still_caught(detector):
     text = "Daftar taruhn online terpercaya dengan layanan pelanggan dua puluh empat jam setiap hari."
     result = detector.detect(text)
@@ -173,6 +187,38 @@ def test_gacor_next_to_a_real_gambling_keyword_is_still_flagged(detector):
 def test_repeating_an_ambiguous_word_adds_no_evidence(detector):
     """Situs sepak bola menyebut 'bola' berulang kali; itu bukan judi."""
     assert detector.detect("Jadwal bola hari ini. " * 15).label == "No Keywords"
+
+
+# --- Kata kunci dari dataset komentar/postingan judol (HuggingFace) ---
+
+@pytest.mark.parametrize("text", [
+    "gue sih ga pernah nyesel gabung alexis 17 dari awal",   # ejaan lain (variations)
+    "main di weton88 wd berapapun dibayar",
+    "pola gacor kakek zeus hari ini, scatter hitam terus",
+    "live draw sgp dan keluaran hk malam ini, prediksi togel jitu",
+    "mix parlay dan sicbo di agen terpercaya",
+])
+def test_spam_wording_from_datasets_is_flagged(detector, text):
+    assert detector.detect(text).label == "Keywords Found"
+
+
+@pytest.mark.parametrize("text", [
+    "Patung Zeus di museum Olympia, dewa tertinggi dalam mitologi Yunani",
+    "Kamera Olympus lama ini masih tajam untuk foto jalanan",
+    "Main mahjong bareng keluarga saat Imlek",
+    "Unboxing ciki berhadiah, dapat jackpot uang lima ribu",
+    "Stop judol! Mari berantas judol bersama demi generasi muda",
+    "Kloset TOTO baru dipasang di kamar mandi",
+])
+def test_ambiguous_words_alone_are_not_flagged(detector, text):
+    assert detector.detect(text).label == "No Keywords"
+
+
+def test_a_keyword_is_not_a_typo_of_a_longer_keyword(detector):
+    """'bandar' (pelabuhan) bukan salah ketik 'bandarq' (permainan kartu)."""
+    text = "Bayi ditemukan di sebuah kedai di Bandar Changi, polisi masih menyelidiki kasus ini."
+    found = detector.detect(text).evidence.get("keywords_found", [])
+    assert "bandarq" not in [k["keyword"] for k in found]
 
 
 # --- Data nyata dari data/samples/ (teks halaman yang diambil dengan browser) ---
