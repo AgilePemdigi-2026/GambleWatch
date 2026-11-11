@@ -166,24 +166,6 @@ function ResultContent() {
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans relative">
       <PublicHeader activeTab="analysis" />
 
-<<<<<<< HEAD
-          <nav className="hidden md:flex items-center gap-8 bg-white/70 px-8 py-2 rounded-full text-xs font-black tracking-wider uppercase text-[#3B1E12]">
-            <Link href="/" className="opacity-70 hover:opacity-100 transition-opacity">HOME</Link>
-            <Link href="/form-gamblin-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">GAMBLING ANALYSIS</Link>
-            <a href="#" className="opacity-70 hover:opacity-100 transition-opacity">FEEDBACK</a>
-          </nav>
-
-          <Link href="/my-analyses">
-            <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
-              MY ANALYSES
-            </button>
-          </Link>
-        </header>
-      </div>
-
-      {/* Main Content */}
-=======
->>>>>>> 9ad9938 (refactor: standardize public & admin layout with reusable header/footer, custom modals, and route fixes)
       <main className="max-w-4xl mx-auto my-8 px-4 w-full flex-grow">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-3xl font-extrabold text-[#2C1810]">Analysis Results</h1>
