@@ -109,9 +109,11 @@ export default function FormGamblingAnalysisPage() {
             </a>
           </nav>
 
-          <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
-            MY ANALYSES
-          </button>
+          <Link href="/my-analyses">
+            <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
+              MY ANALYSES
+            </button>
+          </Link>
         </header>
       </div>
 

@@ -49,12 +49,12 @@ function DetailVerifikasiContent({
 
   // Form State
   const [statusRegulasi, setStatusRegulasi] = useState("Menunggu Verifikasi (Pending)");
-  const [nomorSurat, setNomorSurat] = useState("KOMDIGI/DIT-APT/VI/2026/8912");
+  const [nomorSurat, setNomorSurat] = useState("");
   const [catatan, setCatatan] = useState("");
   const [distribusiOtomatis, setDistribusiOtomatis] = useState(true);
   const [simpanArsip, setSimpanArsip] = useState(true);
 
-  // Fetch Data dari Supabase
+  // Fetch Data Dinamis dari Supabase Berdasarkan ID
   useEffect(() => {
     async function fetchReportDetail() {
       try {
@@ -94,45 +94,43 @@ function DetailVerifikasiContent({
             }
           }
 
+          // Hitung Skor Probabilitas Secara Dinamis Jika Kolom DB Kosong Berdasarkan Risiko
+          const calculatedScore = typeof data.skor_probabilitas === "number"
+            ? data.skor_probabilitas
+            : (data.tingkat_risiko === "HIGH RISK" || data.tingkat_risiko === "HIGH" ? 85 : data.tingkat_risiko === "MEDIUM" ? 55 : 20);
+
+          // Pemetaan Data Murni Dinamis dari Supabase
           const fetchedReport: ReportDetail = {
             id: data.id,
-            urlSitus: data.url_situs || "http://slot-xxx-00-xxxxx.xyz",
+            urlSitus: data.url_situs || data.url || "-",
             pelapor: data.pelapor || (data.user_id ? `user_${data.user_id.slice(0, 8)}` : "user_anon_01"),
-            waktuDeteksiTanggal: tanggalFormatted || "15 Juli 2026",
-            waktuDeteksiJam: jamFormatted || "14:32:08 WIB",
+            waktuDeteksiTanggal: tanggalFormatted,
+            waktuDeteksiJam: jamFormatted,
             ipAddress: data.ip_address || "104.21.49.182",
             ipLocation: data.ip_location || "Cloudflare, Inc. (SG)",
-            metodeTemuan: data.metode_temuan || "Model v4.2 NLP-ID",
-            skorProbabilitas: data.skor_probabilitas ?? 87,
-            tingkatRisiko: data.tingkat_risiko || "HIGH",
+            metodeTemuan: data.metode_temuan || "GambleWatch AI Engine v4.2",
+            skorProbabilitas: calculatedScore,
+            tingkatRisiko: data.tingkat_risiko || "PENDING",
             status: data.status || "Menunggu Verifikasi (Pending)",
-            nomorSurat: data.nomor_surat || "KOMDIGI/DIT-APT/VI/2026/8912",
+            nomorSurat: data.nomor_surat || `KOMDIGI/DIT-APT/VI/2026/${data.id}`,
             catatanAdmin: data.catatan_admin || "",
             distribusiOtomatis: data.distribusi_otomatis ?? true,
             simpanArsip: data.simpan_arsip ?? true,
             screenshotUrl: finalScreenshotUrl,
-            snippets: data.snippets || [
-              {
-                frase: "Daftar sekarang dan dapatkan bonus 100% member baru tanpa potongan langsung cair!",
-                highlights: ["bonus 100%"],
-                dom: "DOM: <h1>.promo-title",
-                kategori: "Kategori: Promosi Deposit",
-              },
-              {
-                frase: "Slot online terpercaya , deposit minimal 10rb via QRIS, DANA, OVO 24 jam nonstop.",
-                highlights: ["Slot online terpercaya", "deposit minimal 10rb"],
-                dom: "DOM: <div.gateway-info>",
-                kategori: "Kategori: Transaksi Finansial",
-              },
-              {
-                frase: "Menang jutaan rupiah setiap hari dengan pola maxwin gacor rtp live 98.8%.",
-                highlights: ["Menang jutaan rupiah setiap hari"],
-                dom: "DOM: <span.ticker-item>",
-                kategori: "Kategori: Janji Kemenangan",
-              },
-            ],
+
+            // Snippets Dinamis Berdasarkan Deskripsi/Kolom Laporan Asli
+            snippets: Array.isArray(data.snippets) && data.snippets.length > 0 
+              ? data.snippets 
+              : [
+                  {
+                    frase: data.deskripsi || data.catatan || `Terindikasi potensi pelanggaran perjudian pada situs ${data.url_situs || data.url || 'terkait'}.`,
+                    highlights: [data.tingkat_risiko || "terindikasi"],
+                    dom: `DOM: <main_report_id_${data.id}>`,
+                    kategori: `Kategori: ${data.tingkat_risiko || 'Analisis Otomatis'}`,
+                  }
+                ],
             auditLogs: [
-              { tanggal: `${tanggalFormatted} ${jamFormatted}`, petugas: "System (Crawler AI)", aksi: "Deteksi Otomatis (Skor: 87)" },
+              { tanggal: `${tanggalFormatted} ${jamFormatted}`, petugas: "System (Crawler AI)", aksi: `Deteksi Otomatis Laporan #${data.id} (Skor: ${calculatedScore})` },
               { tanggal: `${tanggalFormatted} ${jamFormatted}`, petugas: "Admin Verifikator", aksi: "Membuka Tiket Laporan" },
             ],
           };
@@ -140,8 +138,8 @@ function DetailVerifikasiContent({
           setReport(fetchedReport);
           setStatusRegulasi(fetchedReport.status);
           setInitialStatus(fetchedReport.status);
-          if (fetchedReport.nomorSurat) setNomorSurat(fetchedReport.nomorSurat);
-          if (fetchedReport.catatanAdmin) setCatatan(fetchedReport.catatanAdmin);
+          setNomorSurat(fetchedReport.nomorSurat);
+          setCatatan(fetchedReport.catatanAdmin);
           setDistribusiOtomatis(fetchedReport.distribusiOtomatis);
           setSimpanArsip(fetchedReport.simpanArsip);
         }
@@ -298,7 +296,7 @@ function DetailVerifikasiContent({
           </div>
 
           <nav className="bg-[#F6F3EC] p-1 rounded-full flex items-center gap-1 text-xs font-medium">
-            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">Beranda</Link>
+            <Link href="/admin" className="px-4 py-1.5 text-gray-600 hover:text-black">Beranda</Link>
             <Link href="/admin/hasil-klasifikasi" className="bg-white text-[#2C221E] px-4 py-1.5 rounded-full font-bold shadow-xs">Analisis perjudian</Link>
             <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">Umpan balik</Link>
           </nav>
@@ -313,17 +311,23 @@ function DetailVerifikasiContent({
           {/* Breadcrumb */}
           <div className="flex justify-between items-center text-xs text-gray-500">
             <div className="flex items-center gap-2">
-              <Link href="#" className="hover:underline">Beranda</Link>
+              <Link href="/admin" className="hover:underline">Beranda</Link>
               <span>›</span>
               <Link href="/admin/hasil-klasifikasi" className="hover:underline">Hasil Klasifikasi</Link>
               <span>›</span>
               <span className="font-bold text-[#1A1A1A]">Tindak Lanjut & Status Pemblokiran</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="bg-[#3D0C02] text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider">
-                ● PRIORITAS TINGGI (P1)
+              <span className={`text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider ${
+                report?.tingkatRisiko === 'HIGH' || report?.tingkatRisiko === 'HIGH RISK' 
+                  ? 'bg-[#3D0C02]' 
+                  : report?.tingkatRisiko === 'MEDIUM' 
+                  ? 'bg-[#C48C46]' 
+                  : 'bg-[#6A8259]'
+              }`}>
+                ● PRIORITAS: {report?.tingkatRisiko || 'PENDING'}
               </span>
-              <span className="font-semibold text-gray-600 text-xs">Tiket ID: #GW-2026-0891</span>
+              <span className="font-semibold text-gray-600 text-xs">Tiket ID: #GW-2026-{report?.id.toString().padStart(4, '0')}</span>
             </div>
           </div>
 
@@ -352,7 +356,6 @@ function DetailVerifikasiContent({
             <span className="sr-only">Site Information</span>
             <div className="flex justify-between items-start mb-6">
               <div className="flex items-start gap-2.5">
-                <span className="text-base text-gray-700 mt-0.5">🌐</span>
                 <div>
                   <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A1A]">
                     INFORMASI SITUS & IDENTITAS TARGET
@@ -363,8 +366,15 @@ function DetailVerifikasiContent({
                 </div>
               </div>
 
-              <span className="bg-[#3D0C02] text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-                ● RISIKO TINGGI (HIGH)
+              {/* Dynamic Badge Risiko dari Database */}
+              <span className={`text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
+                report?.tingkatRisiko === 'HIGH' || report?.tingkatRisiko === 'HIGH RISK' 
+                  ? 'bg-[#3D0C02]' 
+                  : report?.tingkatRisiko === 'MEDIUM' 
+                  ? 'bg-[#C48C46]' 
+                  : 'bg-[#6A8259]'
+              }`}>
+                ● RISIKO: {report?.tingkatRisiko || 'PENDING'}
               </span>
             </div>
 
@@ -376,16 +386,15 @@ function DetailVerifikasiContent({
                     <span className="sr-only">Site URL</span>
                   </label>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">🔗</span>
                     <span className="font-extrabold text-sm text-[#1A1A1A]">
-                      {report?.urlSitus || "http://slot-xxx-00-xxxxx.xyz"}
+                      {report?.urlSitus}
                     </span>
                     <button
                       onClick={handleCopyUrl}
                       title="Salin URL"
                       className="text-gray-400 hover:text-black text-xs cursor-pointer ml-1"
                     >
-                      📋
+                    
                     </button>
                     <a
                       href={report?.urlSitus.startsWith("http") ? report.urlSitus : `https://${report?.urlSitus}`}
@@ -394,7 +403,7 @@ function DetailVerifikasiContent({
                       title="Buka Link"
                       className="text-gray-400 hover:text-black text-xs"
                     >
-                      ↗
+                    
                     </a>
                   </div>
                 </div>
@@ -406,13 +415,13 @@ function DetailVerifikasiContent({
                       <span className="sr-only">Risk Score</span>
                     </span>
                     <span className="text-xs font-extrabold text-[#1A1A1A]">
-                      {report?.skorProbabilitas || 87} / 100
+                      {report?.skorProbabilitas} / 100
                     </span>
                   </div>
                   <div className="w-full bg-[#E5DFD3] rounded-full h-2.5 overflow-hidden">
                     <div
-                      className="bg-[#3D0C02] h-full rounded-full"
-                      style={{ width: `${report?.skorProbabilitas || 87}%` }}
+                      className="bg-[#3D0C02] h-full rounded-full transition-all duration-500"
+                      style={{ width: `${report?.skorProbabilitas || 0}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-500 font-medium mt-1.5">
@@ -426,52 +435,52 @@ function DetailVerifikasiContent({
               <div className="lg:col-span-5 grid grid-cols-2 gap-x-6 gap-y-5 text-xs pt-1">
                 <div>
                   <span className="block text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1.5 mb-1">
-                    <span>👤</span> Pelapor Awal
+                    Pelapor Awal
                     <span className="sr-only">Reported By</span>
                   </span>
                   <span className="font-bold text-[#1A1A1A] block">
-                    {report?.pelapor || "user_anon_01"}
+                    {report?.pelapor}
                   </span>
                   <span className="text-[10px] text-gray-400 font-medium block">
-                    📍 Warga Terverifikasi
+                    Warga Terverifikasi
                   </span>
                 </div>
 
                 <div>
                   <span className="block text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1.5 mb-1">
-                    <span>📅</span> Waktu Deteksi
+                    Waktu Deteksi
                     <span className="sr-only">Detection Date</span>
                   </span>
                   <span className="font-bold text-[#1A1A1A] block">
-                    {report?.waktuDeteksiTanggal || "15 Juli 2026"}
+                    {report?.waktuDeteksiTanggal}
                   </span>
                   <span className="text-[10px] text-gray-500 font-medium block">
-                    {report?.waktuDeteksiJam || "14:32:08 WIB"}
+                    {report?.waktuDeteksiJam}
                   </span>
                 </div>
 
                 <div>
                   <span className="block text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1.5 mb-1">
-                    <span>🖥️</span> Alamat IP / Lokasi
+                    Alamat IP / Lokasi
                     <span className="sr-only">Classification</span>
                   </span>
                   <span className="font-bold text-[#1A1A1A] block">
-                    {report?.ipAddress || "104.21.49.182"}
+                    {report?.ipAddress}
                   </span>
                   <span className="text-[10px] text-gray-500 font-medium block">
-                    {report?.ipLocation || "Cloudflare, Inc. (SG)"}
+                    {report?.ipLocation}
                   </span>
                 </div>
 
                 <div>
                   <span className="block text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1.5 mb-1">
-                    <span>⚙️</span> Metode Temuan
+                    Metode Temuan
                   </span>
                   <span className="font-bold text-[#1A1A1A] block">
                     Deep Scraper AI
                   </span>
                   <span className="text-[10px] text-gray-500 font-medium block">
-                    {report?.metodeTemuan || "Model v4.2 NLP-ID"}
+                    {report?.metodeTemuan}
                   </span>
                 </div>
               </div>
@@ -483,7 +492,6 @@ function DetailVerifikasiContent({
             <span className="sr-only">Evidence</span>
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-start gap-2.5">
-                <span className="text-base text-gray-700 mt-0.5">🛡️</span>
                 <div>
                   <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A1A]">
                     BUKTI & POTONGAN TEKS TEMUAN
@@ -531,25 +539,25 @@ function DetailVerifikasiContent({
                         disabled={isSnapshotting}
                         className="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <span>📷</span> {isSnapshotting ? "Mengambil Snapshot..." : "Jalankan Headless Snapshot"}
+                        <span></span> {isSnapshotting ? "Mengambil Snapshot..." : "Jalankan Headless Snapshot"}
                       </button>
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <span>📤</span> Unggah Manual
+                        <span></span> Unggah Manual
                       </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Flagged Text Snippets */}
+              {/* Flagged Text Snippets (Dinamis dari Laporan) */}
               <div data-testid="flagged-snippets" className="md:col-span-7 space-y-3">
                 <span className="sr-only">Flagged Text Snippets</span>
                 <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                   <span>Potongan Teks Terindikasi (Flagged Text Snippets)</span>
-                  <span>3 Frasa Terdeteksi</span>
+                  <span>{report?.snippets.length || 0} Frasa Terdeteksi</span>
                 </div>
 
                 {report?.snippets.map((snippet, idx) => (
@@ -583,7 +591,6 @@ function DetailVerifikasiContent({
           {/* CARD 3: PERBARUI STATUS & CATATAN PETUGAS */}
           <div className="bg-[#F6F3EC] rounded-2xl p-6 border border-[#EBE6DA] space-y-5">
             <div className="flex items-start gap-2.5">
-              <span className="text-base text-gray-700 mt-0.5">⚖️</span>
               <div>
                 <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A1A]">
                   PERBARUI STATUS & CATATAN PETUGAS
@@ -649,7 +656,7 @@ function DetailVerifikasiContent({
                 value={catatan}
                 onChange={(e) => setCatatan(e.target.value)}
                 placeholder="Tambahkan catatan tindak lanjut, indikasi rekening deposit penampung, koordinat hosting, atau rekomendasi teknis pemblokiran lanjutan..."
-                className="w-full bg-white border border-[#EBE6DA] rounded-xl p-3.5 text-xs font-medium text-gray-800 focus:outline-none placeholder-gray-400"
+                className="w-full bg-[#FFFFFF] border border-[#EBE6DA] rounded-xl p-3.5 text-xs font-medium text-gray-800 focus:outline-none placeholder-gray-400"
               />
             </div>
 
@@ -676,28 +683,26 @@ function DetailVerifikasiContent({
               </label>
             </div>
 
-            {/* FOOTER ACTION BUTTONS DENGAN TOMBOL BARESKRIM PADA BARIS UTAMA */}
+            {/* FOOTER ACTION BUTTONS */}
             <div className="flex items-center justify-between pt-4 border-t border-[#EBE6DA]">
               <button
                 type="button"
                 onClick={handleCancelStatus}
                 className="text-xs font-medium text-gray-600 hover:text-black cursor-pointer"
               >
-                Cancel
+                Batal
               </button>
 
               <div className="flex items-center gap-3">
-                {/* Tombol Kirim Sampel ke Bareskrim */}
                 <button
                   data-testid="btn-kirim-bareskrim"
                   suppressHydrationWarning
                   onClick={handleKirimBareskrim}
                   className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>⚖️</span> Kirim Sampel ke Bareskrim
+                  <span></span> Kirim Sampel ke Bareskrim
                 </button>
 
-                {/* Tombol Update Status */}
                 <button
                   suppressHydrationWarning
                   onClick={handleUpdateStatus}
