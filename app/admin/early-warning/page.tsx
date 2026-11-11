@@ -41,14 +41,11 @@ export default function EarlyWarningPage() {
   const [timeRange, setTimeRange] = useState<'thisMonth' | 'sixMonths'>('sixMonths');
   const [loading, setLoading] = useState(true);
 
-  // Solusi aman render jam/bulan di Client side
   const [currentMonthIndex, setCurrentMonthIndex] = useState(10);
 
-  // State Data Supabase
   const [allAlerts, setAllAlerts] = useState<AlertDomain[]>([]);
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
   
-  // State per bulan (Juni - November: indeks 5 - 10)
   const [monthlyCounts, setMonthlyCounts] = useState<{ [key: number]: number }>({
     5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0
   });
@@ -71,7 +68,6 @@ export default function EarlyWarningPage() {
         if (records && records.length > 0) {
           const icons = [AlertTriangle, UserPlus, CreditCard, Clock];
           
-          // 1. Mapping Seluruh Card untuk Fitur Filter Search
           const mappedCards = records.map((row, index) => ({
             id: row.id,
             domain: row.url_situs || row.domain || `domain-00${index + 1}.com`,
@@ -84,7 +80,6 @@ export default function EarlyWarningPage() {
           }));
           setAllAlerts(mappedCards);
 
-          // 2. Mapping Tabel Pola Terindikasi
           const mappedPatterns = records.map((row) => {
             const isHigh = row.tingkat_risiko === 'HIGH RISK';
             const isMedium = row.tingkat_risiko === 'MEDIUM RISK' || row.tingkat_risiko === 'PENDING';
@@ -95,7 +90,7 @@ export default function EarlyWarningPage() {
               domain: row.url_situs || row.domain || 'domain-terindikasi.com',
               severity: isHigh ? 'Kritis' : isMedium ? 'Peringatan' : 'Info',
               date: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-              dotColor: isHigh ? 'bg-rose-500' : isMedium ? 'bg-amber-500' : 'bg-blue-500',
+              dotColor: isHigh ? 'bg-rose-500' : isMedium ? 'bg-[#3B1E12]' : 'bg-blue-500',
               badgeBg: isHigh 
                 ? 'bg-rose-100 text-rose-800 border-rose-200' 
                 : isMedium 
@@ -105,7 +100,6 @@ export default function EarlyWarningPage() {
           });
           setPatterns(mappedPatterns);
 
-          // 3. Hitung Jumlah Laporan per Bulan
           const counts: { [key: number]: number } = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
           records.forEach((row) => {
             if (row.created_at) {
@@ -125,12 +119,10 @@ export default function EarlyWarningPage() {
     }
 
     fetchEWRData();
-  }, []);
+  }, [supabase]);
 
-  // --- LOGIKA FILTER SEARCH REAL-TIME UNTUK CARD DAN TABEL ---
   const query = searchTerm.toLowerCase().trim();
 
-  // Filter 4 Card Atas berdasarkan kata kunci search
   const filteredCards = allAlerts.filter(
     (card) =>
       query === '' ||
@@ -140,7 +132,6 @@ export default function EarlyWarningPage() {
 
   const displayedCards = filteredCards.slice(0, 4);
 
-  // Filter Tabel berdasarkan kata kunci search + toggle status
   const filteredPatterns = patterns.filter((item) => {
     const matchesSearch =
       query === '' ||
@@ -157,7 +148,6 @@ export default function EarlyWarningPage() {
     (p) => p.severity === 'Kritis' || p.severity === 'Peringatan'
   ).length;
 
-  // --- LOGIKA GRAFIK TREN BULANAN SVG ---
   const monthListEWR = timeRange === 'thisMonth' 
     ? [{ name: 'Nov', index: currentMonthIndex >= 5 && currentMonthIndex <= 10 ? currentMonthIndex : 10 }]
     : [
@@ -196,13 +186,13 @@ export default function EarlyWarningPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
-      {/* Top Header Navbar */}
+      {/* Top Header Navbar Presisi di Tengah */}
       <div className="px-6 pt-4">
         <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm gap-4">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/logo.png" alt="GambleWatch Logo" width={36} height={36} className="object-contain" />
             <div>
-              <span className="font-black text-xl tracking-wider text-[#3B1E12] block leading-none" style={{ fontFamily: 'var(--font-holtwood), serif' }}>
+              <span className="font-black text-xl tracking-wider text-[#3B1E12] block leading-none">
                 GAMBLEWATCH
               </span>
               <span className="text-[10px] text-stone-500 font-medium">Deteksi perjudian online ilegal</span>
@@ -238,16 +228,10 @@ export default function EarlyWarningPage() {
             </Link>
           </nav>
 
-          <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase flex items-center gap-2 hover:bg-[#28130a] transition-all">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Analisis saya
-          </button>
+          <div className="w-[220px] hidden md:block"></div>
         </header>
       </div>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto my-8 px-6 w-full flex-grow">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -258,7 +242,6 @@ export default function EarlyWarningPage() {
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            {/* Input Search Real-time */}
             <div className="relative flex-1 md:w-72">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -280,7 +263,6 @@ export default function EarlyWarningPage() {
           </div>
         </div>
 
-        {/* 4 Card Anomali Domain (Tersaring secara Live oleh Input Search) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {loading ? (
             <div className="col-span-4 text-center py-8 text-xs font-semibold text-stone-500 flex items-center justify-center gap-2">
@@ -326,7 +308,6 @@ export default function EarlyWarningPage() {
           )}
         </div>
 
-        {/* Section Grafik Tren Indikasi */}
         <div className="mb-8">
           <h2 className="text-base font-extrabold text-[#2C1810] mb-3">Tren indikasi</h2>
           <div className="bg-[#FAF5EE] p-6 rounded-2xl border border-[#E2D7C7] shadow-sm">
@@ -370,7 +351,6 @@ export default function EarlyWarningPage() {
               </div>
             </div>
 
-            {/* Line Chart SVG */}
             <div className="relative w-full h-64 my-4">
               <svg viewBox="0 0 800 200" className="w-full h-full overflow-visible">
                 <line x1="0" y1="20" x2="800" y2="20" stroke="#E2D7C7" strokeDasharray="4 4" />
@@ -425,7 +405,6 @@ export default function EarlyWarningPage() {
           </div>
         </div>
 
-        {/* Section Tabel Pola Terindikasi */}
         <div className="mb-8">
           <h2 className="text-base font-extrabold text-[#2C1810] mb-3">Pola terindikasi</h2>
           <div className="bg-[#FAF5EE] rounded-2xl border border-[#E2D7C7] shadow-sm overflow-hidden">
@@ -511,7 +490,6 @@ export default function EarlyWarningPage() {
                           {item.date}
                         </td>
 
-                        {/* TOMBOL LIHAT DETAIL MODUL EWR */}
                         <td className="py-4 px-6 text-right">
                           <Link
                             href={`/admin/early-warning/${item.id}`}
@@ -535,13 +513,13 @@ export default function EarlyWarningPage() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <button className="px-3 py-1.5 rounded-full border border-stone-300 bg-white hover:bg-stone-50 text-stone-600 transition disabled:opacity-50 font-bold">
+                <button className="px-3 py-1.5 rounded-full border border-stone-300 bg-[#FAF5EE] hover:bg-stone-50 text-stone-600 transition disabled:opacity-50 font-bold">
                   Sebelumnya
                 </button>
                 <button className="w-7 h-7 rounded-full bg-[#3B1E12] text-white font-black text-xs flex items-center justify-center shadow-xs">
                   1
                 </button>
-                <button className="px-3 py-1.5 rounded-full border border-stone-300 bg-white hover:bg-stone-50 text-stone-600 transition font-bold">
+                <button className="px-3 py-1.5 rounded-full border border-stone-300 bg-[#FAF5EE] hover:bg-stone-50 text-stone-600 transition font-bold">
                   Selanjutnya
                 </button>
               </div>
@@ -550,16 +528,12 @@ export default function EarlyWarningPage() {
         </div>
       </main>
 
-      {/* Footer Container */}
       <footer className="mt-8 bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
           <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI). Hak cipta dilindungi.</p>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-stone-900 transition-colors">Tentang web</a>
             <a href="#" className="hover:text-stone-900 transition-colors">Kebijakan privasi</a>
-            <a href="#" className="bg-[#FAF5EE] border border-stone-300 text-stone-800 px-5 py-2 rounded-full font-semibold shadow-sm hover:bg-stone-50 transition-all flex items-center gap-1.5">
-              Hubungi dukungan
-            </a>
           </div>
         </div>
       </footer>

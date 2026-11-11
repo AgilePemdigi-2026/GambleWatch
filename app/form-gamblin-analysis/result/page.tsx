@@ -64,7 +64,7 @@ function ResultContent() {
       }
 
       alert('Laporan berhasil disimpan dan dikirim ke Admin!');
-      router.push('/form-gambling-analysis');
+      router.push('/form-gamblin-analysis');
     }
   };
 
@@ -87,7 +87,7 @@ function ResultContent() {
       alert(`Gagal menghapus laporan: ${error.message}`);
     } else {
       alert('Analisis berhasil dibuang.');
-      router.push('/form-gambling-analysis');
+      router.push('/form-gamblin-analysis');
     }
   };
 
@@ -104,8 +104,8 @@ function ResultContent() {
 
   const probability = isPending 
     ? 'Proses Pemindaian...' 
-    : (typeof data?.skor_probabilitas === 'number' 
-        ? `${Math.round(data.skor_probabilitas * 100)}% Probability` 
+    : (typeof data?.skor_probabilitas === 'number'
+        ? `${Math.round(data.skor_probabilitas)}% Probability` // kolom berskala 0-100
         : '0% Probability');
 
   const urlPattern = data?.url_pattern_analysis || (isPending ? 'Memproses...' : 'Clean / No Pattern');
@@ -127,7 +127,7 @@ function ResultContent() {
 
           <nav className="hidden md:flex items-center gap-8 bg-white/70 px-8 py-2 rounded-full text-xs font-black tracking-wider uppercase text-[#3B1E12]">
             <Link href="/" className="opacity-70 hover:opacity-100 transition-opacity">HOME</Link>
-            <Link href="/form-gambling-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">GAMBLING ANALYSIS</Link>
+            <Link href="/form-gamblin-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">GAMBLING ANALYSIS</Link>
             <a href="#" className="opacity-70 hover:opacity-100 transition-opacity">FEEDBACK</a>
           </nav>
 
