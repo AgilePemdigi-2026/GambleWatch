@@ -7,6 +7,10 @@ import math
 from typing import List, Dict, Any, Optional, Pattern, Tuple
 from urllib.parse import urlparse, parse_qs
 
+from detection_engine.config.gambling_brands import (
+    CHEAP_TLDS, STEM_NUMBER_GLUED, WORD_GAMBLING_NUMBER, WORD_LUCKY_NUMBER,
+)
+
 from detection_engine.models.detection_models import (
     DetectionStatus, DetectorType, DetectionResult, DetectorError
 )
@@ -44,6 +48,7 @@ class URLPatternDetector:
         ('maxbet', 0.8, 'brand'),
         ('ligaciputra', 0.7, 'brand'),
         # Game, provider and betting terms (data/keywords.json, DET-04)
+        ('slotgacor', 0.9, 'slot'),  # thousands of *.pages.dev spam sites (crt.sh)
         ('parlay', 0.7, 'sports'),
         ('sicbo', 0.8, 'casino'),
         ('pgsoft', 0.7, 'provider'),
@@ -308,6 +313,9 @@ class URLPatternDetector:
         
         # Rule 4: Indonesian gambling patterns
         matched_rules.extend(self._check_indonesian_patterns(parsed))
+
+        # Rule 4b: brand names <word><number> (zeus123, hoki138, mpo88)
+        matched_rules.extend(self._check_brand_names(parsed))
         
         # Rule 5: Suspicious path patterns
         matched_rules.extend(self._check_path_patterns(parsed))
@@ -349,9 +357,66 @@ class URLPatternDetector:
                     'anchor': True,
                 })
                 break  # Only count once
-        
+
+        # Cheap TLDs (.xyz, .top, .site, ...) host many throwaway gambling sites,
+        # but ordinary sites too: supporting evidence only.
+        if not matched and tld.endswith(CHEAP_TLDS):
+            matched.append({
+                'rule': 'cheap_tld',
+                'weight': 0.2,
+                'details': f"Cheap TLD often used by gambling sites: {tld}",
+                'category': 'tld',
+                'supporting': True,
+            })
+
         return matched
-    
+
+    def _check_brand_names(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Indonesian gambling brands are named <word><number>: zeus123, hoki138, mpo88.
+
+        Patterns live in detection_engine/config/gambling_brands.py (shared with DET-04).
+        In the host name: a known brand word + any number, or any word + a
+        number used almost only by gambling brands (138, 303, 4d) is an anchor;
+        any word + a lucky number (88, 777) only supports another signal.
+        In the path the same names count less (platform pages, slugs).
+        """
+        matched = []
+        host = self._strip_benign('.'.join(parsed['sub_labels'] + [parsed['name']]))
+        path = parsed['path'].lower()
+
+        def rule(name, weight, found, where, anchor):
+            return {
+                'rule': name,
+                'weight': weight,
+                'details': f"Gambling brand name in {where}: '{found}'",
+                'category': 'brand_number',
+                'anchor' if anchor else 'supporting': True,
+            }
+
+        stem = STEM_NUMBER_GLUED.search(host)
+        number = WORD_GAMBLING_NUMBER.search(host)
+        lucky = WORD_LUCKY_NUMBER.search(host)
+        # 0.75: on its own enough for "Tinggi" (>= 0.7). Checked on Tranco top
+        # 200k (11/11/2026): the domains it flags are almost all gambling sites.
+        if stem:
+            matched.append(rule('brand_number_domain', 0.75, stem.group(), 'domain', True))
+        elif number:
+            matched.append(rule('brand_number_domain', 0.55, number.group(), 'domain', True))
+        elif lucky:
+            matched.append(rule('lucky_number_domain', 0.2, lucky.group(), 'domain', False))
+
+        stem = STEM_NUMBER_GLUED.search(path)
+        number = WORD_GAMBLING_NUMBER.search(path)
+        lucky = WORD_LUCKY_NUMBER.search(path)
+        if stem:
+            matched.append(rule('brand_number_path', 0.5, stem.group(), 'path', True))
+        elif number:
+            matched.append(rule('brand_number_path', 0.3, number.group(), 'path', False))
+        elif lucky:
+            matched.append(rule('lucky_number_path', 0.15, lucky.group(), 'path', False))
+
+        return matched
+
     # Ordinary words that merely contain a gambling keyword ("alphabet" has
     # "bet"). They are blanked out before keyword matching. Domains glue words
     # together ("togelonline", "dewabet"), so keywords cannot be matched as
@@ -364,6 +429,7 @@ class URLPatternDetector:
         'alphabetical', 'alphabet', 'alfabet', 'between', 'better',
         'bethesda', 'bethany', 'betsy', 'betty', 'beta',
         'cement', 'diabet', 'mistake',
+        'judicia', 'judith',  # judicial/judiciary contain "judi"
     )
 
     def _strip_benign(self, text: str) -> str:

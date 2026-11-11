@@ -214,6 +214,28 @@ def test_ambiguous_words_alone_are_not_flagged(detector, text):
     assert detector.detect(text).label == "No Keywords"
 
 
+@pytest.mark.parametrize("text", [
+    "main di zeus123 sekarang juga",
+    "kakek zeus 8 lagi bagi-bagi",
+    "daftar hoki138 dan petir388 hari ini",
+    "link mpo500 terbaru",
+])
+def test_brand_names_word_plus_number_are_flagged(detector, text):
+    """Merek judi dinamai <kata><angka>; pola dipakai bersama dengan DET-01."""
+    assert detector.detect(text).label == "Keywords Found"
+
+
+@pytest.mark.parametrize("text", [
+    "Polisi menjerat pelaku dengan pasal 303 KUHP tentang perjudian di persidangan kemarin.",
+    "Film Joker 2 tayang minggu depan di bioskop",
+    "Tiket Garuda 2026 sedang promo",
+    "kisah raja2 di kartu remi zaman dulu",      # "raja2" = raja-raja
+])
+def test_ordinary_word_number_combinations_are_not_brands(detector, text):
+    found = detector.detect(text).evidence.get("keywords_found", [])
+    assert not [k for k in found if k["category"] == "brand"]
+
+
 def test_a_keyword_is_not_a_typo_of_a_longer_keyword(detector):
     """'bandar' (pelabuhan) bukan salah ketik 'bandarq' (permainan kartu)."""
     text = "Bayi ditemukan di sebuah kedai di Bandar Changi, polisi masih menyelidiki kasus ini."

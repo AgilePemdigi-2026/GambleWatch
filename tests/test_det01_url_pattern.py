@@ -37,6 +37,11 @@ HIGH_RISK = [
     "https://kusumatoto.xyz",
     "https://livedrawsgp.info",
     "https://slotzeus.vip",
+    "https://zeus123.xyz",          # <kata><angka>, pola merek judi
+    "https://zeus8.com",
+    "https://mpo500king.com",
+    "https://hoki138panther.com",
+    "https://slots88.gumroad.com",
     "https://contoh.fr/id/live-draw-sgp.html",       # hasil undian togel
     "https://contoh.gumroad.com/l/RTPPragmaticPlay",  # "/rtp" menempel nama permainan
 ]
@@ -57,6 +62,11 @@ NORMAL = [
     "https://www.toto.co.id",
     "https://mahjong.games/online",
     "https://matplotlib.org/stable/gallery/scatter",
+    "https://tempo24.news",          # "mpo" di dalam "tempo"
+    "https://dewa19.com",            # band Dewa 19
+    "https://ufa1.ru",               # kota Ufa
+    "https://mahjong4friends.com",
+    "https://king5.com",             # stasiun TV
 ]
 
 
