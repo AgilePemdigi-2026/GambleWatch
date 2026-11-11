@@ -1,17 +1,101 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+
+// Baris laporan_analisis yang dipakai dashboard
+interface Laporan {
+  id: number;
+  url_situs: string | null;
+  tingkat_risiko: string | null;
+  status: string | null;
+  created_at: string | null;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const DAY = 24 * 60 * 60 * 1000;
+// Label lama ("HIGH RISK") masih ada di beberapa baris awal
+const isHigh = (r: string | null) => r === 'HIGH' || r === 'HIGH RISK';
+const isIndicated = (r: string | null) => isHigh(r) || r === 'MEDIUM' || r === 'MEDIUM RISK';
+// Status selesai ditangani admin (halaman Tindak Lanjut)
+const DONE = new Set(['Blocked', 'No Action Needed']);
+
+const hostOf = (url: string | null) => {
+  try { return new URL(url ?? '').hostname.replace(/^www\./, ''); } catch { return url ?? ''; }
+};
+
+const fmt = (n: number) => n.toLocaleString('id-ID');
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState('beranda');
+  const [reports, setReports] = useState<Laporan[] | null>(null);
+  // Waktu data dimuat: acuan "24 jam terakhir" dan bulan grafik (tidak dihitung saat render)
+  const [loadedAt, setLoadedAt] = useState(0);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await createClient()
+        .from('laporan_analisis')
+        .select('id, url_situs, tingkat_risiko, status, created_at');
+      if (!active) return;
+      if (error) setLoadError(error.message);
+      setLoadedAt(Date.now());
+      setReports((data as Laporan[]) ?? []);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Semua angka dihitung dari laporan_analisis; null = masih memuat
+  const summary = useMemo(() => {
+    if (!reports) return null;
+    const now = loadedAt;
+    const time = (r: Laporan) => (r.created_at ? new Date(r.created_at).getTime() : 0);
+    const high = reports.filter((r) => isHigh(r.tingkat_risiko));
+    const last24 = high.filter((r) => now - time(r) < DAY);
+    const prev24 = high.filter((r) => now - time(r) >= DAY && now - time(r) < 2 * DAY);
+
+    // 7 bulan terakhir, berakhir di bulan ini: situs terindikasi (Sedang + Tinggi)
+    const today = new Date(loadedAt);
+    const months = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today.getFullYear(), today.getMonth() - 6 + i, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+    const counts = months.map(({ year, month }) =>
+      reports.filter((r) => {
+        if (!r.created_at || !isIndicated(r.tingkat_risiko)) return false;
+        const d = new Date(r.created_at);
+        return d.getFullYear() === year && d.getMonth() === month;
+      }).length,
+    );
+    const step = Math.max(1, Math.ceil(Math.max(...counts) / 3));
+
+    return {
+      total: reports.length,
+      high: high.length,
+      // DRAFT = pelapor belum mengirim ke admin; Blocked/No Action Needed = sudah diputuskan
+      waiting: reports.filter((r) => r.status && r.status !== 'DRAFT' && !DONE.has(r.status)).length,
+      blocked: reports.filter((r) => r.status === 'Blocked').length,
+      last24: last24.length,
+      prev24: prev24.length,
+      domains24: new Set(last24.map((r) => hostOf(r.url_situs))).size,
+      chart: months.map((m, i) => ({ month: MONTHS[m.month], count: counts[i] })),
+      axisMax: step * 3,
+      axis: [step * 3, step * 2, step, 0],
+      period: `${MONTHS[months[0].month]} ${months[0].year} – ${MONTHS[months[6].month]} ${months[6].year}`,
+    };
+  }, [reports, loadedAt]);
+
+  const value = (n: number | undefined) => (summary ? fmt(n ?? 0) : '…');
 
   // Stat Cards Data
   const stats = [
     {
       title: 'Total laporan',
-      value: '1,247',
+      value: value(summary?.total),
       subtitle: 'Laporan yang diterima',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,7 +105,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Situs berisiko tinggi',
-      value: '89',
+      value: value(summary?.high),
       subtitle: 'Perlu perhatian khusus',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,7 +115,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Menunggu tinjauan',
-      value: '34',
+      value: value(summary?.waiting),
       subtitle: 'Dalam antrean verifikasi',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +125,7 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Situs diblokir',
-      value: '156',
+      value: value(summary?.blocked),
       subtitle: 'Pemblokiran dilakukan',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,8 +135,9 @@ export default function AdminDashboardPage() {
     },
     {
       title: 'Scraping aktif',
-      value: '12',
-      subtitle: 'Pekerjaan pengumpulan data',
+      // Modul scraper belum ada (rencana sprint 3, docs/RANCANGAN_SCRAPER.md)
+      value: '–',
+      subtitle: 'Modul scraper belum aktif (sprint 3)',
       icon: (
         <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -66,7 +151,7 @@ export default function AdminDashboardPage() {
     {
       title: 'Hasil klasifikasi',
       desc: 'Tinjau klasifikasi situs',
-      href: '/admin/classification',
+      href: '/admin/hasil-klasifikasi',
       icon: (
         <svg className="w-5 h-5 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -125,16 +210,27 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  // Bar Chart Data
-  const chartData = [
-    { month: 'Jan', height: '28%' },
-    { month: 'Feb', height: '48%' },
-    { month: 'Mar', height: '58%' },
-    { month: 'Apr', height: '72%' },
-    { month: 'Mei', height: '62%' },
-    { month: 'Jun', height: '82%' },
-    { month: 'Jul', height: '92%' },
-  ];
+  // Bar Chart Data (tinggi batang relatif terhadap sumbu atas)
+  const chartData = (summary?.chart ?? []).map((c) => ({
+    month: c.month,
+    count: c.count,
+    height: `${summary ? (c.count / summary.axisMax) * 100 : 0}%`,
+  }));
+
+  // Banner peringatan dini: laporan berisiko tinggi 24 jam terakhir vs 24 jam sebelumnya
+  const alert = (() => {
+    if (!summary) return { title: 'Memuat ringkasan deteksi...', badge: '', text: '' };
+    const { last24, prev24, domains24 } = summary;
+    // Angka pembanding, bukan persen: dari 2 ke 72 laporan terbaca "3500%" dan menyesatkan
+    const change = ` (24 jam sebelumnya: ${fmt(prev24)})`;
+    return last24 > 0
+      ? {
+          title: last24 > prev24 ? 'Peringatan: Lonjakan Deteksi Tinggi' : 'Peringatan: Deteksi Tinggi',
+          badge: 'Perlu tindakan',
+          text: `Terdeteksi ${fmt(last24)} laporan berisiko tinggi dalam 24 jam terakhir dari ${fmt(domains24)} domain${change}.`,
+        }
+      : { title: 'Tidak ada deteksi tinggi baru', badge: 'Aman', text: 'Tidak ada laporan berisiko tinggi dalam 24 jam terakhir.' };
+  })();
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
@@ -238,13 +334,15 @@ export default function AdminDashboardPage() {
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-extrabold text-sm text-[#2C1810]">Peringatan: Lonjakan Deteksi Tinggi</h3>
-                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                    Perlu tindakan
-                  </span>
+                  <h3 className="font-extrabold text-sm text-[#2C1810]">{alert.title}</h3>
+                  {alert.badge && (
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${alert.badge === 'Aman' ? 'bg-emerald-100 text-emerald-900 border-emerald-200' : 'bg-amber-100 text-amber-900 border-amber-200'}`}>
+                      {alert.badge}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Terdeteksi peningkatan 42% aktivitas perjudian ilegal dalam 24 jam terakhir di 3 domain. Tindakan segera diperlukan.
+                  {loadError ? `Gagal memuat data laporan: ${loadError}` : alert.text}
                 </p>
               </div>
             </div>
@@ -292,25 +390,25 @@ export default function AdminDashboardPage() {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="font-bold text-sm text-[#2C1810]">Jumlah deteksi per bulan</h3>
-                <p className="text-[11px] text-stone-500">Periode Januari – Juli</p>
+                <p className="text-[11px] text-stone-500">Periode {summary?.period ?? '…'}</p>
               </div>
-              <span className="text-xs text-stone-600 font-medium">Deteksi situs</span>
+              <span className="text-xs text-stone-600 font-medium">Situs terindikasi (Sedang + Tinggi)</span>
             </div>
 
             {/* Bar Chart Graphics */}
             <div className="h-52 flex items-end justify-between gap-4 pt-8 px-6 border-b-2 border-[#3B1E12] relative">
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-stone-400 py-2">
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">180</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">120</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">60</span></div>
-                <div className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">0</span></div>
+                {(summary?.axis ?? [0, 0, 0, 0]).map((tick, i) => (
+                  <div key={i} className="border-b border-stone-300 border-dashed w-full flex items-center justify-start"><span className="-ml-8">{summary ? tick : ''}</span></div>
+                ))}
               </div>
 
               {chartData.map((item, index) => (
                 <div key={index} className="flex-1 flex flex-col items-center h-full justify-end z-10">
-                  <div 
-                    className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-sm hover:bg-[#28130a] transition-all shadow-xs" 
+                  <div
+                    className="w-full max-w-[42px] bg-[#3B1E12] rounded-t-sm hover:bg-[#28130a] transition-all shadow-xs"
                     style={{ height: item.height }}
+                    title={`${item.month}: ${item.count} situs terindikasi`}
                   ></div>
                   <span className="text-xs text-[#2C1810] font-bold mt-3">{item.month}</span>
                 </div>

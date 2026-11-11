@@ -98,7 +98,8 @@ function DetailContent() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <span className={`px-3 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                  riskLevel === 'HIGH RISK' || riskLevel === 'BLOCKED'
+                  // Data baru memakai HIGH; label lama "HIGH RISK" tetap dikenali
+                  riskLevel === 'HIGH' || riskLevel === 'HIGH RISK' || riskLevel === 'BLOCKED'
                     ? 'bg-rose-100 text-rose-800 border-rose-200' 
                     : 'bg-amber-100 text-amber-800 border-amber-200'
                 }`}>

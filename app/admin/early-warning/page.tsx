@@ -34,6 +34,53 @@ interface PatternItem {
   badgeBg: string;
 }
 
+// --- Pembacaan hasil mesin deteksi dari laporan_analisis ---
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+// Data baru memakai HIGH/MEDIUM/LOW; beberapa baris lama memakai "HIGH RISK"/"MEDIUM RISK"
+function riskLevel(value: string | null): 'high' | 'medium' | 'low' | 'pending' {
+  if (value === 'HIGH' || value === 'HIGH RISK') return 'high';
+  if (value === 'MEDIUM' || value === 'MEDIUM RISK') return 'medium';
+  if (value === 'LOW' || value === 'LOW RISK') return 'low';
+  return 'pending';
+}
+
+const MODULE_SIGNALS: [string, string][] = [
+  ['keyword_analysis', 'Kata kunci promosi judi'],
+  ['ocr', 'Teks judi pada tangkapan layar'],
+  ['url_pattern', 'Pola URL situs judi'],
+  ['visual_similarity', 'Tampilan mirip situs judi'],
+];
+
+interface LaporanRow {
+  tingkat_risiko: string | null;
+  url_pattern_analysis?: string | null;
+  keywords_found?: string | null;
+  bukti_deteksi?: { modul?: Record<string, { status?: string; temuan?: string[] }> } | null;
+}
+
+// Sinyal utama sebuah laporan: modul pertama yang punya temuan (kata kunci > OCR > URL > visual)
+function mainFinding(row: LaporanRow): { name: string; detail: string } {
+  const modul = row.bukti_deteksi?.modul;
+  if (modul) {
+    for (const [key, name] of MODULE_SIGNALS) {
+      const temuan = modul[key]?.temuan ?? [];
+      if (modul[key]?.status === 'ok' && temuan.length) return { name, detail: temuan.slice(0, 3).join(', ') };
+    }
+  }
+  // Laporan lama tanpa bukti_deteksi: ringkasan teks yang tersimpan
+  if (row.url_pattern_analysis && !row.url_pattern_analysis.startsWith('Tidak dianalisis')) {
+    return { name: 'Pola URL situs judi', detail: row.url_pattern_analysis };
+  }
+  if (row.keywords_found?.startsWith('Ditemukan')) return { name: 'Kata kunci promosi judi', detail: row.keywords_found };
+  return {
+    name: riskLevel(row.tingkat_risiko) === 'pending' ? 'Belum dianalisis mesin deteksi' : 'Tidak ada sinyal judi',
+    detail: '',
+  };
+}
+
 export default function EarlyWarningPage() {
   const [activeTab, setActiveTab] = useState('analisis');
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,25 +88,22 @@ export default function EarlyWarningPage() {
   const [timeRange, setTimeRange] = useState<'thisMonth' | 'sixMonths'>('sixMonths');
   const [loading, setLoading] = useState(true);
 
-  // Solusi aman render jam/bulan di Client side
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(10);
-
   // State Data Supabase
   const [allAlerts, setAllAlerts] = useState<AlertDomain[]>([]);
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
-  
-  // State per bulan (Juni - November: indeks 5 - 10)
-  const [monthlyCounts, setMonthlyCounts] = useState<{ [key: number]: number }>({
-    5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0
-  });
+
+  // Tren: rata-rata skor deteksi (0-100) per bulan, kunci "YYYY-MM".
+  // Daftar bulan dihitung di klien setelah data dimuat (bukan saat render server).
+  const [months, setMonths] = useState<{ key: string; name: string; year: number }[]>([]);
+  const [monthlyScores, setMonthlyScores] = useState<Record<string, number>>({});
+  const [lastUpdate, setLastUpdate] = useState('-');
 
   const supabase = createClient();
 
   useEffect(() => {
-    setCurrentMonthIndex(new Date().getMonth());
+    let active = true;
 
     async function fetchEWRData() {
-      setLoading(true);
       try {
         const { data: records, error } = await supabase
           .from('laporan_analisis')
@@ -67,64 +111,90 @@ export default function EarlyWarningPage() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+        if (!active) return;
+
+        // 6 bulan terakhir, berakhir di bulan ini
+        const today = new Date();
+        const monthList = Array.from({ length: 6 }, (_, i) => {
+          const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+          return { key: monthKey(d), name: MONTH_NAMES[d.getMonth()], year: d.getFullYear() };
+        });
+        setMonths(monthList);
 
         if (records && records.length > 0) {
           const icons = [AlertTriangle, UserPlus, CreditCard, Clock];
-          
-          // 1. Mapping Seluruh Card untuk Fitur Filter Search
-          const mappedCards = records.map((row, index) => ({
-            id: row.id,
-            domain: row.url_situs || row.domain || `domain-00${index + 1}.com`,
-            percentage: row.tingkat_risiko === 'HIGH RISK' ? '+42%' : '+18%',
-            desc: row.catatan || row.alasan_indikasi || 'Pola transaksi / aktivitas tidak wajar terdeteksi.',
-            icon: icons[index % icons.length],
-            badgeBg: row.tingkat_risiko === 'HIGH RISK' 
-              ? 'bg-rose-100 text-rose-700 border-rose-200' 
-              : 'bg-amber-100 text-amber-800 border-amber-200',
-          }));
+          const analysed = records.filter((row) => riskLevel(row.tingkat_risiko) !== 'pending');
+
+          // 1. Kartu: laporan Tinggi/Sedang dengan skor tertinggi (dari skor deteksi asli)
+          const mappedCards = analysed
+            .filter((row) => ['high', 'medium'].includes(riskLevel(row.tingkat_risiko)))
+            .sort((a, b) => (b.skor_probabilitas ?? 0) - (a.skor_probabilitas ?? 0))
+            .map((row, index) => {
+              const finding = mainFinding(row);
+              const high = riskLevel(row.tingkat_risiko) === 'high';
+              return {
+                id: row.id,
+                domain: row.url_situs || '-',
+                percentage: `${Math.round(row.skor_probabilitas ?? 0)}%`,
+                desc: finding.detail ? `${finding.name}: ${finding.detail}` : finding.name,
+                icon: icons[index % icons.length],
+                badgeBg: high
+                  ? 'bg-rose-100 text-rose-700 border-rose-200'
+                  : 'bg-amber-100 text-amber-800 border-amber-200',
+              };
+            });
           setAllAlerts(mappedCards);
 
-          // 2. Mapping Tabel Pola Terindikasi
+          // 2. Tabel pola: sinyal utama dari bukti deteksi, keparahan dari tingkat risiko
           const mappedPatterns = records.map((row) => {
-            const isHigh = row.tingkat_risiko === 'HIGH RISK';
-            const isMedium = row.tingkat_risiko === 'MEDIUM RISK' || row.tingkat_risiko === 'PENDING';
-            
+            const level = riskLevel(row.tingkat_risiko);
+            const isHigh = level === 'high';
+            const isMedium = level === 'medium';
+
             return {
               id: row.id,
-              patternName: row.kategori_indikasi || row.jenis_pelanggaran || 'Multiple Fast Transactions',
-              domain: row.url_situs || row.domain || 'domain-terindikasi.com',
-              severity: isHigh ? 'Kritis' : isMedium ? 'Peringatan' : 'Info',
-              date: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-              dotColor: isHigh ? 'bg-rose-500' : isMedium ? 'bg-amber-500' : 'bg-blue-500',
-              badgeBg: isHigh 
-                ? 'bg-rose-100 text-rose-800 border-rose-200' 
-                : isMedium 
-                ? 'bg-amber-100 text-amber-800 border-amber-200' 
+              patternName: mainFinding(row).name,
+              domain: row.url_situs || '-',
+              severity: isHigh ? 'Kritis' : isMedium ? 'Peringatan' : level === 'low' ? 'Info' : 'Belum dianalisis',
+              date: row.created_at ? row.created_at.split('T')[0] : '-',
+              dotColor: isHigh ? 'bg-rose-500' : isMedium ? 'bg-amber-500' : level === 'low' ? 'bg-blue-500' : 'bg-stone-400',
+              badgeBg: isHigh
+                ? 'bg-rose-100 text-rose-800 border-rose-200'
+                : isMedium
+                ? 'bg-amber-100 text-amber-800 border-amber-200'
                 : 'bg-slate-100 text-slate-700 border-slate-200',
             };
           });
           setPatterns(mappedPatterns);
 
-          // 3. Hitung Jumlah Laporan per Bulan
-          const counts: { [key: number]: number } = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
-          records.forEach((row) => {
-            if (row.created_at) {
-              const monthIndex = new Date(row.created_at).getMonth();
-              if (monthIndex >= 5 && monthIndex <= 10) {
-                counts[monthIndex] = (counts[monthIndex] || 0) + 1;
-              }
-            }
+          // 3. Rata-rata skor per bulan (hanya laporan yang sudah dianalisis)
+          const sums: Record<string, { total: number; n: number }> = {};
+          analysed.forEach((row) => {
+            if (!row.created_at || typeof row.skor_probabilitas !== 'number') return;
+            const key = monthKey(new Date(row.created_at));
+            sums[key] = sums[key] ?? { total: 0, n: 0 };
+            sums[key].total += row.skor_probabilitas;
+            sums[key].n += 1;
           });
-          setMonthlyCounts(counts);
+          setMonthlyScores(Object.fromEntries(
+            Object.entries(sums).map(([key, s]) => [key, Math.round(s.total / s.n)]),
+          ));
+
+          if (records[0].created_at) {
+            const d = new Date(records[0].created_at);
+            setLastUpdate(`${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`);
+          }
         }
       } catch (err) {
         console.error('Error fetching EWR data:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
     fetchEWRData();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- LOGIKA FILTER SEARCH REAL-TIME UNTUK CARD DAN TABEL ---
@@ -158,41 +228,43 @@ export default function EarlyWarningPage() {
   ).length;
 
   // --- LOGIKA GRAFIK TREN BULANAN SVG ---
-  const monthListEWR = timeRange === 'thisMonth' 
-    ? [{ name: 'Nov', index: currentMonthIndex >= 5 && currentMonthIndex <= 10 ? currentMonthIndex : 10 }]
-    : [
-        { name: 'Jun', index: 5 },
-        { name: 'Jul', index: 6 },
-        { name: 'Agu', index: 7 },
-        { name: 'Sep', index: 8 },
-        { name: 'Okt', index: 9 },
-        { name: 'Nov', index: 10 },
-      ];
+  // Nilai titik = rata-rata skor deteksi (0-100) laporan pada bulan itu
+  const monthListEWR = timeRange === 'thisMonth' ? months.slice(-1) : months;
 
   const rawChartPoints = monthListEWR.map((m, idx) => {
     const xStep = timeRange === 'thisMonth' ? 0 : 140;
     const startX = timeRange === 'thisMonth' ? 400 : 50;
     return {
       x: startX + idx * xStep,
-      val: monthlyCounts[m.index] || 0,
+      val: monthlyScores[m.key] ?? 0,
       month: m.name,
     };
   });
 
-  const maxVal = Math.max(...rawChartPoints.map((p) => p.val), 5);
-  
+  // Skor selalu 0-100, jadi sumbu tetap
+  const maxVal = 100;
+
   const calculatedPoints = rawChartPoints.map((pt) => ({
     ...pt,
     y: Math.max(170 - (pt.val / maxVal) * 130, 30),
   }));
 
+  const firstY = calculatedPoints[0]?.y ?? 170;
   const svgPathD = timeRange === 'thisMonth'
-    ? `M 400 ${calculatedPoints[0].y}`
+    ? `M 400 ${firstY}`
     : calculatedPoints.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
 
-  const svgAreaD = timeRange === 'thisMonth'
-    ? `M 380 ${calculatedPoints[0].y} L 420 ${calculatedPoints[0].y} L 420 190 L 380 190 Z`
+  const svgAreaD = !calculatedPoints.length
+    ? ''
+    : timeRange === 'thisMonth'
+    ? `M 380 ${firstY} L 420 ${firstY} L 420 190 L 380 190 Z`
     : `${svgPathD} L 750 190 L 50 190 Z`;
+
+  const periodLabel = months.length
+    ? timeRange === 'thisMonth'
+      ? `${months[months.length - 1].name} ${months[months.length - 1].year}`
+      : `${months[0].name} ${months[0].year} – ${months[months.length - 1].name} ${months[months.length - 1].year}`
+    : '…';
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
@@ -271,7 +343,7 @@ export default function EarlyWarningPage() {
             </div>
 
             <Link
-              href="/admin/analysis"
+              href="/form-gamblin-analysis"
               className="bg-[#3B1E12] text-white px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 hover:bg-[#28130a] transition-all shrink-0 shadow-xs"
             >
               <Plus className="w-4 h-4" />
@@ -336,7 +408,7 @@ export default function EarlyWarningPage() {
                   Tren Indikasi Sepanjang Waktu
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Pantauan fluktuasi skor anomali sinyal peringatan dini ({timeRange === 'thisMonth' ? 'Bulan Ini' : 'Juni – November 2026'})
+                  Rata-rata skor indikasi judi (0–100) dari mesin deteksi per bulan ({periodLabel})
                 </p>
               </div>
 
@@ -373,16 +445,13 @@ export default function EarlyWarningPage() {
             {/* Line Chart SVG */}
             <div className="relative w-full h-64 my-4">
               <svg viewBox="0 0 800 200" className="w-full h-full overflow-visible">
-                <line x1="0" y1="20" x2="800" y2="20" stroke="#E2D7C7" strokeDasharray="4 4" />
-                <line x1="0" y1="70" x2="800" y2="70" stroke="#E2D7C7" strokeDasharray="4 4" />
-                <line x1="0" y1="120" x2="800" y2="120" stroke="#E2D7C7" strokeDasharray="4 4" />
-                <line x1="0" y1="170" x2="800" y2="170" stroke="#E2D7C7" strokeDasharray="4 4" />
-
-                <text x="-15" y="24" className="text-[10px] fill-stone-500 font-mono font-bold">{maxVal}</text>
-                <text x="-15" y="74" className="text-[10px] fill-stone-500 font-mono font-bold">{Math.round(maxVal * 0.75)}</text>
-                <text x="-15" y="124" className="text-[10px] fill-stone-500 font-mono font-bold">{Math.round(maxVal * 0.5)}</text>
-                <text x="-15" y="174" className="text-[10px] fill-stone-500 font-mono font-bold">{Math.round(maxVal * 0.25)}</text>
-                <text x="-15" y="198" className="text-[10px] fill-stone-500 font-mono font-bold">0</text>
+                {/* Garis sumbu di posisi yang sama dengan rumus titik: y = 170 - nilai/maks * 130 */}
+                {[1, 0.75, 0.5, 0.25, 0].map((f) => (
+                  <g key={f}>
+                    <line x1="0" y1={170 - f * 130} x2="800" y2={170 - f * 130} stroke="#E2D7C7" strokeDasharray="4 4" />
+                    <text x="-15" y={174 - f * 130} className="text-[10px] fill-stone-500 font-mono font-bold">{Math.round(maxVal * f)}</text>
+                  </g>
+                ))}
 
                 <defs>
                   <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -414,13 +483,13 @@ export default function EarlyWarningPage() {
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#3B1E12]"></span>
-                  Kurva anomali agregat domain
+                  Rata-rata skor deteksi laporan
                 </span>
                 <span className="px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-[10px]">
-                  Model AI Terkalibrasi Aktif
+                  Mesin deteksi DET-01 – DET-04
                 </span>
               </div>
-              <p>Pembaruan sistem terakhir: <span className="font-bold text-[#2C1810]">Hari ini, 14:30 WIB</span></p>
+              <p>Laporan terakhir masuk: <span className="font-bold text-[#2C1810]">{lastUpdate}</span></p>
             </div>
           </div>
         </div>
