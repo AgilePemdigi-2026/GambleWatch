@@ -104,7 +104,10 @@
     "weight": 0.7,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "sabung ayam",
+      "sabungayam"
+    ],
     "aliases": []
   },
   {
@@ -122,7 +125,10 @@
     "weight": 0.7,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "max win",
+      "maxwinn"
+    ],
     "aliases": []
   },
   {
@@ -131,16 +137,27 @@
     "weight": 0.3,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "gacir",
+      "gachor",
+      "gacur",
+      "gacorr",
+      "segacor",
+      "tergacor"
+    ],
     "aliases": []
   },
   {
     "term": "jackpot",
     "category": "promotion",
-    "weight": 0.8,
+    "weight": 0.45,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "jekpot",
+      "jakpot",
+      "jackpott"
+    ],
     "aliases": []
   },
   {
@@ -149,7 +166,9 @@
     "weight": 0.9,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "sbobet88"
+    ],
     "aliases": []
   },
   {
@@ -401,7 +420,10 @@
     "weight": 0.8,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "sweetbonanza",
+      "sweet bonanza 1000"
+    ],
     "aliases": []
   },
   {
@@ -410,7 +432,12 @@
     "weight": 0.8,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "gate of olympus",
+      "gatesofolympus",
+      "olympus 1000",
+      "gates of olympus 1000"
+    ],
     "aliases": []
   },
   {
@@ -419,7 +446,10 @@
     "weight": 0.5,
     "active": true,
     "language": "id",
-    "variations": [],
+    "variations": [
+      "pragmaticplay",
+      "pragmatic slot"
+    ],
     "aliases": []
   },
   {
@@ -446,6 +476,1376 @@
     "weight": 0.5,
     "active": true,
     "language": "en",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "judol",
+    "category": "gambling",
+    "weight": 0.2,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "jodol"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "judi bola",
+    "category": "sports",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "judibola"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "situs slot",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "situsslot",
+      "situs gacor"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "slot online",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "slotonline",
+      "game slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "agen slot",
+    "category": "agent",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "agen togel",
+      "agen casino"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "bandar togel",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "bandartogel",
+      "bandar toto"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "bandar bola",
+    "category": "sports",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "bandarbola",
+      "agen bola",
+      "agen sbobet"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "casino online",
+    "category": "casino",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "onlinecasino",
+      "kasino online"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "live casino",
+    "category": "casino",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "livecasino"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "situs toto",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "toto slot",
+      "toto togel",
+      "toto macau",
+      "situstoto"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "toto",
+    "category": "lottery",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "slot88",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "slot 88",
+      "slot777",
+      "slot 777"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "slot dana",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "slot pulsa",
+      "slot ovo",
+      "slot gopay",
+      "slot qris",
+      "slotdana",
+      "slotpulsa",
+      "slotovo",
+      "slotgopay"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "slot thailand",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "slot server thailand",
+      "server thailand",
+      "slot kamboja",
+      "server kamboja",
+      "slot luar negeri"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "slot demo",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "demo slot",
+      "akun demo slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "akun pro",
+    "category": "slot",
+    "weight": 0.4,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "akun pro thailand",
+      "akun vip slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "pola gacor",
+    "category": "promotion",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "pola slot",
+      "pola maxwin",
+      "polagacor",
+      "pola olympus"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "jam gacor",
+    "category": "promotion",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "jam hoki",
+      "jam main slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "rtp live",
+    "category": "game_info",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "rtp slot",
+      "rtp gacor",
+      "info rtp",
+      "rtplive",
+      "bocoran rtp"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "scatter hitam",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "scatterhitam",
+      "scatter merah"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "buy spin",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "buyspin",
+      "beli spin",
+      "buy free spin"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "freespin",
+    "category": "promotion",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "free spins",
+      "putaran gratis"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "modal receh",
+    "category": "promotion",
+    "weight": 0.4,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "depo receh",
+      "bet receh",
+      "modalreceh"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "anti rungkad",
+    "category": "promotion",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "antirungkad",
+      "anti boncos"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "rungkad",
+    "category": "promotion",
+    "weight": 0.4,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "boncos"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "auto wd",
+    "category": "payment",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "autowd",
+      "wd lancar",
+      "wd cepat",
+      "wd berapapun dibayar"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "wede",
+    "category": "payment",
+    "weight": 0.4,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "wedey",
+      "wd"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "jepe",
+    "category": "promotion",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "jepey",
+      "jepee",
+      "jp paus",
+      "jackpot paus"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "deposit pulsa",
+    "category": "payment",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "depo pulsa",
+      "deposit dana",
+      "depo dana",
+      "deposit ovo",
+      "deposit gopay",
+      "deposit qris",
+      "depo 10k",
+      "depo 5k",
+      "depo 20k",
+      "depo 25k",
+      "depositpulsa"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "bonus rollingan",
+    "category": "promotion",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "rollingan",
+      "bonus rolling",
+      "cashback kekalahan"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "gampang maxwin",
+    "category": "promotion",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mudah maxwin",
+      "pasti maxwin",
+      "gampang jp",
+      "gampang jackpot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "big win",
+    "category": "promotion",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "bigwin",
+      "mega win",
+      "super win",
+      "sensational win"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "starlight princess",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "starlightprincess",
+      "starlight princess 1000"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "mahjong ways",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mahjongways",
+      "mahjong ways 2",
+      "mahjong wins",
+      "mahyong ways"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "mahjong",
+    "category": "slot",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mahyong"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "gates of gatot kaca",
+    "category": "slot",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "gatot kaca 1000",
+      "gate of gatot kaca"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "kakek zeus",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "kakek merah",
+      "kakek petir",
+      "slot zeus",
+      "slotzeus",
+      "zeus slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "zeus",
+    "category": "slot",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "olympus",
+    "category": "slot",
+    "weight": 0.2,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "sugar rush",
+    "category": "slot",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "sugar rush 1000"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "wild west gold",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "wildwestgold"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "aztec gems",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "treasures of aztec",
+      "aztec gems deluxe"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "wild bandito",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "wild bounty showdown",
+    "category": "slot",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "lucky neko",
+    "category": "slot",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "koi gate",
+    "category": "slot",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "power of thor",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "power of thor megaways"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "great rhino",
+    "category": "slot",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "great rhino megaways"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "spaceman",
+    "category": "slot",
+    "weight": 0.2,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "pg soft",
+    "category": "provider",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "pgsoft",
+      "pg slot"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "spadegaming",
+    "category": "provider",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "spade gaming"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "microgaming",
+    "category": "provider",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "nolimit city",
+    "category": "provider",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "nolimitcity"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "hacksaw gaming",
+    "category": "provider",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "hacksawgaming"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "habanero",
+    "category": "provider",
+    "weight": 0.4,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "playtech",
+    "category": "provider",
+    "weight": 0.5,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "joker123",
+    "category": "provider",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "joker gaming",
+      "joker388"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "jili",
+    "category": "provider",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "cq9",
+    "category": "provider",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "fachai",
+    "category": "provider",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "idn poker",
+    "category": "card_game",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "idnpoker",
+      "idn play",
+      "idnplay",
+      "idn live",
+      "idnlive"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "sv388",
+    "category": "sports",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "sabung ayam online",
+      "s128",
+      "ws168"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "918kiss",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "mega888",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "pussy888",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "cmd368",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "afb88",
+    "category": "brand",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "saba sports",
+    "category": "sports",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "sabasports"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "sicbo",
+    "category": "casino",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "sic bo"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "dragon tiger",
+    "category": "casino",
+    "weight": 0.5,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "domino qq",
+    "category": "card_game",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "dominoqq",
+      "domino qiu qiu",
+      "qiu qiu",
+      "qiuqiu"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "bandarq",
+    "category": "card_game",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "bandar q",
+      "bandarqq"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "aduq",
+    "category": "card_game",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "capsa susun",
+    "category": "card_game",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "capsa"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "sakong",
+    "category": "card_game",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "tembak ikan",
+    "category": "casino",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "fish hunter",
+      "joker fishing"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "super10",
+    "category": "card_game",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "super 10"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "parlay",
+    "category": "sports",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mix parlay",
+      "mixparlay"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "asian handicap",
+    "category": "sports",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "over under",
+    "category": "betting",
+    "weight": 0.3,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "togel hongkong",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "togel hk",
+      "togel sgp",
+      "togel singapore",
+      "togel sydney",
+      "togel sdy",
+      "togel macau",
+      "togel cambodia",
+      "togel china",
+      "togel taiwan",
+      "togelhk",
+      "togelsgp",
+      "togelsydney"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "live draw hk",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "live draw sgp",
+      "live draw sdy",
+      "live draw macau",
+      "live draw cambodia",
+      "livedraw"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "keluaran hk",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "keluaran sgp",
+      "keluaran sdy",
+      "keluaran macau",
+      "pengeluaran hk",
+      "pengeluaran sgp",
+      "pengeluaran sdy",
+      "pengeluaran macau",
+      "result hk",
+      "result sgp",
+      "result sdy",
+      "result togel"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "data hk",
+    "category": "lottery",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "data sgp",
+      "data sdy",
+      "data macau"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "paito",
+    "category": "lottery",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "paito warna",
+      "paito hk",
+      "paito sgp"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "bbfs",
+    "category": "lottery",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "colok bebas",
+    "category": "lottery",
+    "weight": 0.8,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "colok macau",
+      "colok naga",
+      "colok jitu"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "angka jitu",
+    "category": "lottery",
+    "weight": 0.6,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "angka main",
+      "nomor jitu",
+      "angka keluar hari ini"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "erek erek",
+    "category": "lottery",
+    "weight": 0.7,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "erek-erek",
+      "buku mimpi 2d",
+      "buku mimpi 4d"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "prediksi togel",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "prediksi hk",
+      "prediksi sgp",
+      "prediksi sdy",
+      "prediksi macau"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "pasaran togel",
+    "category": "lottery",
+    "weight": 0.9,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "shio",
+    "category": "lottery",
+    "weight": 0.2,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "alexis17",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "alexis 17",
+      "lexis17"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "weton88",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "weton 88"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "sgi88",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "sgi 88"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "axl777",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "axl 777"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "dora77",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "dora 77",
+      "dewadora",
+      "wadora"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "pulau777",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "pulau 777",
+      "pulauwin"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "berkah99",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "berkah 99"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "pluto88",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "pluto 88"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "aero88",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "aero 88"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "pstoto99",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "pstoto 99",
+      "pestoto"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "hoki777",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "hoki 777"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "squad777",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "squad 777"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "mona4d",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mona 4d"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "kusumatoto",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "kusuma toto"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "mandalika77",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "mandalika 77"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "macau328",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "lesti77",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "thor311",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "vegashoki88",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "vegas hoki",
+      "vegashoki",
+      "vegasgacor"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "388hero",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "grd138",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "qqsuper99",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "pohon4d",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "77lucky",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [
+      "77luckyslot",
+      "77lucks"
+    ],
+    "aliases": []
+  },
+  {
+    "term": "ovo777",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "nagaplay138",
+    "category": "brand",
+    "weight": 0.85,
+    "active": true,
+    "language": "id",
+    "variations": [],
+    "aliases": []
+  },
+  {
+    "term": "heylink",
+    "category": "brand",
+    "weight": 0.5,
+    "active": true,
+    "language": "id",
     "variations": [],
     "aliases": []
   }

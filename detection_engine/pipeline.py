@@ -28,6 +28,63 @@ MODULE_KEYS = {
     DetectorType.TEXT_KEYWORD: 'keyword_analysis',
 }
 
+MAX_FINDINGS = 10
+
+
+def module_findings(result: DetectionResult) -> List[str]:
+    """Short, JSON-safe reasons for a module's score, for display on result pages.
+
+    URL rules give their description, keyword and OCR modules the gambling
+    terms they found, visual similarity the reference it matched.
+    """
+    evidence = result.evidence or {}
+    if result.status != DetectionStatus.OK:
+        return []
+    if result.detector == DetectorType.URL_PATTERN:
+        found = [str(rule.get('details', rule.get('rule', '')))
+                 for rule in evidence.get('matched_rules', [])]
+    elif result.detector in (DetectorType.TEXT_KEYWORD, DetectorType.OCR):
+        found = [str(match.get('keyword', ''))
+                 for match in evidence.get('keywords_found', [])]
+    elif result.detector == DetectorType.VISUAL_SIMILARITY:
+        best = evidence.get('best_match') or {}
+        found = [str(best.get('id'))] if best.get('id') and result.label.startswith('Visual Match') else []
+    else:
+        found = []
+    unique = list(dict.fromkeys(f for f in found if f))
+    return unique[:MAX_FINDINGS]
+
+
+MAX_OCR_TEXT = 1000
+
+
+def module_details(result: DetectionResult) -> Dict[str, Any]:
+    """Evidence a reviewer reads on the admin page, kept small and JSON-safe.
+
+    Keyword and OCR modules give passages ({text, highlights, category}); OCR
+    also gives the text it read from the screenshot.
+    """
+    evidence = result.evidence or {}
+    if result.status != DetectionStatus.OK:
+        return {}
+    details: Dict[str, Any] = {}
+    if result.detector == DetectorType.TEXT_KEYWORD:
+        passages = evidence.get('passages', [])
+    elif result.detector == DetectorType.OCR:
+        passages = (evidence.get('keyword_detection') or {}).get('passages', [])
+        text = evidence.get('ocr_text_preview') or ''
+        if text:
+            details['ocr_text'] = str(text)[:MAX_OCR_TEXT]
+    else:
+        passages = []
+    if passages:
+        details['passages'] = [
+            {'text': str(p['text']), 'highlights': [str(h) for h in p['highlights']],
+             'category': str(p['category'])}
+            for p in passages
+        ]
+    return details
+
 
 class DetectionPipeline:
     """Pipeline that runs all detectors concurrently."""
@@ -62,14 +119,16 @@ class DetectionPipeline:
         # Run tasks concurrently
         results = self._run_concurrently(tasks)
         
+        duration = (time.time() - start_time) * 1000
+
         # Create pipeline result
         pipeline_result = PipelineResult(
             request_id=request_id,
             input=detection_input,
             results=results,
+            duration_ms=int(duration),
         )
-        
-        duration = (time.time() - start_time) * 1000
+
         self.logger.info(f"Pipeline completed in {duration:.0f}ms with {len(results)} results")
         
         return pipeline_result
@@ -354,13 +413,15 @@ class DetectionPipeline:
                 summary['skipped'] += 1
         
         # Per-module scores, as shown on the PRD result page
-        modules = {key: {'status': 'skipped', 'label': 'Skipped', 'score': 0.0}
+        modules = {key: {'status': 'skipped', 'label': 'Skipped', 'score': 0.0, 'findings': []}
                    for key in MODULE_KEYS.values()}
         for result in pipeline_result.results:
             modules[MODULE_KEYS[result.detector]] = {
                 'status': result.status.value,
                 'label': result.label,
                 'score': result.score,
+                'findings': module_findings(result),
+                **module_details(result),
             }
         summary['modules'] = modules
 
@@ -375,8 +436,14 @@ class DetectionPipeline:
             summary['overall_risk'] = 'low'
         summary['indication'] = INDICATION_LABELS[summary['overall_risk']]
 
-        # Calculate total processing time
-        summary['processing_time_ms'] = sum(r.duration_ms for r in pipeline_result.results)
+        # Wall-clock time; detectors run in parallel, so summing their
+        # durations would overstate it. Results built without run_all() fall
+        # back to the slowest detector.
+        if pipeline_result.duration_ms is not None:
+            summary['processing_time_ms'] = pipeline_result.duration_ms
+        else:
+            summary['processing_time_ms'] = max(
+                (r.duration_ms for r in pipeline_result.results), default=0)
         
         return summary
 

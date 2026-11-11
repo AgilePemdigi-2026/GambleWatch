@@ -41,6 +41,7 @@ class VisualSimilarityDetector:
         self.index_path = Path(index_path or config.reference_index_path)
         self.match_threshold = (match_threshold if match_threshold is not None
                                 else config.visual_similarity_match_threshold)
+        self.clip_threshold = config.visual_similarity_clip_threshold
         self.use_clip = use_clip
         self.logger = logging.getLogger(__name__)
         self._index: Optional[ReferenceIndex] = None
@@ -71,18 +72,24 @@ class VisualSimilarityDetector:
             self.logger.error("Visual similarity failed: %s", e)
             return self._failed("VISUAL_SIMILARITY_ERROR", str(e), start)
 
-        matched = score >= self.match_threshold
+        threshold = self.clip_threshold if method == "clip" else self.match_threshold
+        matched = score >= threshold
         match_info = dict(index.metadata[best_idx])
         return DetectionResult(
             detector=DetectorType.VISUAL_SIMILARITY,
             status=DetectionStatus.OK,
             label=f"Visual Match {score:.0%}" if matched else "No Visual Match",
-            score=float(score),
+            # Only a real match is evidence. Below the threshold any two web
+            # pages look somewhat alike (white background, header bar), and
+            # that resemblance must not add to the combined score; the raw
+            # value stays in the evidence.
+            score=float(score) if matched else 0.0,
             evidence={
                 "matched": matched,
+                "similarity": float(score),
                 "method": method,
                 "best_match": match_info,
-                "match_threshold": self.match_threshold,
+                "match_threshold": threshold,
                 "reference_count": len(index),
             },
             duration_ms=int((time.time() - start) * 1000),
