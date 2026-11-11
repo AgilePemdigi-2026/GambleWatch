@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python / detection engine
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.env
+data/samples/
+data/reference_index.npz

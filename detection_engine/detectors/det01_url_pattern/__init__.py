@@ -1,0 +1,1 @@
+"""DET-01: URL Pattern Detection."""
