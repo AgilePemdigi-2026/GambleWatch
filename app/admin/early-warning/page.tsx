@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
+import AdminHeader from '@/components/AdminHeader';
+import AdminFooter from '@/components/AdminFooter';
 import { createClient } from '@/lib/supabase/client';
 import {
   Search,
@@ -35,7 +36,6 @@ interface PatternItem {
 }
 
 export default function EarlyWarningPage() {
-  const [activeTab, setActiveTab] = useState('analisis');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState<'active' | 'all'>('active');
   const [timeRange, setTimeRange] = useState<'thisMonth' | 'sixMonths'>('sixMonths');
@@ -186,51 +186,8 @@ export default function EarlyWarningPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
-      {/* Top Header Navbar Presisi di Tengah */}
-      <div className="px-6 pt-4">
-        <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm gap-4">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="GambleWatch Logo" width={36} height={36} className="object-contain" />
-            <div>
-              <span className="font-black text-xl tracking-wider text-[#3B1E12] block leading-none">
-                GAMBLEWATCH
-              </span>
-              <span className="text-[10px] text-stone-500 font-medium">Deteksi perjudian online ilegal</span>
-            </div>
-          </Link>
-
-          <nav className="flex items-center gap-3 bg-white/80 px-4 py-1.5 rounded-full text-xs font-bold text-[#3B1E12] border border-stone-200">
-            <Link 
-              href="/admin" 
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full transition-all ${activeTab === 'beranda' ? 'bg-[#F7F2EB] font-black border border-stone-300' : 'opacity-70 hover:opacity-100'}`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Beranda
-            </Link>
-
-            <Link 
-              href="/admin/early-warning" 
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full transition-all ${activeTab === 'analisis' ? 'bg-[#F7F2EB] font-black border border-stone-300' : 'opacity-70 hover:opacity-100'}`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Analisis perjudian
-            </Link>
-
-            <Link href="/admin/feedback" className="opacity-70 hover:opacity-100 transition-opacity px-3 py-1.5 flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              Umpan balik
-            </Link>
-          </nav>
-
-          <div className="w-[220px] hidden md:block"></div>
-        </header>
-      </div>
+      {/* MENGGUNAKAN KOMPONEN REUSABLE ADMIN HEADER */}
+      <AdminHeader activeTab="analisis" />
 
       <main className="max-w-7xl mx-auto my-8 px-6 w-full flex-grow">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -254,7 +211,7 @@ export default function EarlyWarningPage() {
             </div>
 
             <Link
-              href="/admin/analysis"
+              href="/form-gamblin-analysis"
               className="bg-[#3B1E12] text-white px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 hover:bg-[#28130a] transition-all shrink-0 shadow-xs"
             >
               <Plus className="w-4 h-4" />
@@ -528,15 +485,8 @@ export default function EarlyWarningPage() {
         </div>
       </main>
 
-      <footer className="mt-8 bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
-          <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI). Hak cipta dilindungi.</p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-stone-900 transition-colors">Tentang web</a>
-            <a href="#" className="hover:text-stone-900 transition-colors">Kebijakan privasi</a>
-          </div>
-        </div>
-      </footer>
+      {/* MENGGUNAKAN KOMPONEN REUSABLE ADMIN FOOTER */}
+      <AdminFooter />
     </div>
   );
 }

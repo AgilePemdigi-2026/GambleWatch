@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import AdminHeader from '@/components/AdminHeader';
+import AdminFooter from '@/components/AdminFooter';
 import { createClient } from '@/lib/supabase/client';
 import {
   ArrowLeft,
@@ -96,7 +97,6 @@ function DetailContent() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <span className={`px-3 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                  // Data baru memakai HIGH; label lama "HIGH RISK" tetap dikenali
                   riskLevel === 'HIGH' || riskLevel === 'HIGH RISK' || riskLevel === 'BLOCKED'
                     ? 'bg-rose-100 text-rose-800 border-rose-200' 
                     : 'bg-amber-100 text-amber-800 border-amber-200'
@@ -124,7 +124,7 @@ function DetailContent() {
               )}
 
               <Link
-                href={`/admin/block-status/${id}`}
+                href={`/admin/verifikasi/${id}`}
                 className="bg-[#3B1E12] text-white hover:bg-[#28130a] px-4 py-2 rounded-full font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs"
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
@@ -223,36 +223,7 @@ function DetailContent() {
 export default function DetailEarlyWarningPage() {
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
-      {/* Top Header Navbar dengan Kapsul Navigasi Presisi di Tengah */}
-      <div className="px-6 pt-4">
-        <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm gap-4">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="GambleWatch Logo" width={36} height={36} className="object-contain" />
-            <div>
-              <span className="font-black text-xl tracking-wider text-[#3B1E12] block leading-none">
-                GAMBLEWATCH
-              </span>
-              <span className="text-[10px] text-stone-500 font-medium">Deteksi perjudian online ilegal</span>
-            </div>
-          </Link>
-
-          {/* Navigasi Kapsul */}
-          <nav className="flex items-center gap-3 bg-white/80 px-4 py-1.5 rounded-full text-xs font-bold text-[#3B1E12] border border-stone-200">
-            <Link href="/admin" className="px-4 py-1.5 rounded-full opacity-70 hover:opacity-100 transition-all">
-              Beranda
-            </Link>
-            <Link href="/admin/early-warning" className="px-4 py-1.5 rounded-full bg-[#F7F2EB] font-black border border-stone-300">
-              Analisis perjudian
-            </Link>
-            <Link href="/admin/feedback" className="opacity-70 hover:opacity-100 transition-opacity px-3 py-1.5">
-              Umpan balik
-            </Link>
-          </nav>
-
-          {/* Penyeimbang Kanan Agar Navigasi Tetap di Tengah Presisi */}
-          <div className="w-[220px] hidden md:block"></div>
-        </header>
-      </div>
+      <AdminHeader activeTab="analisis" />
 
       <Suspense fallback={
         <div className="text-center py-16 text-xs font-bold text-stone-500 flex items-center justify-center gap-2">
@@ -262,15 +233,7 @@ export default function DetailEarlyWarningPage() {
         <DetailContent />
       </Suspense>
 
-      <footer className="mt-8 bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
-          <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI). Hak cipta dilindungi.</p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-stone-900 transition-colors">Tentang web</a>
-            <a href="#" className="hover:text-stone-900 transition-colors">Kebijakan privasi</a>
-          </div>
-        </div>
-      </footer>
+      <AdminFooter />
     </div>
   );
 }

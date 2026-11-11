@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import PublicHeader from '@/components/PublicHeader';
+import PublicFooter from '@/components/PublicFooter';
 import { createClient } from '@/lib/supabase/client';
 import { Upload, Search, RotateCw } from 'lucide-react';
 
@@ -105,18 +105,11 @@ export default function GamblingAnalysisFormPage() {
             </Link>
           </nav>
 
-feature/integrasi-bdd
-          <Link href="/my-analyses">
-            <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
-              MY ANALYSES
-            </button>
-
           <Link
             href="/my-analyses"
             className="bg-[#3B1E12] text-white px-5 py-2 rounded-full font-bold text-xs hover:bg-[#28130a] transition-all uppercase tracking-wider"
           >
             MY ANALYSES
-main
           </Link>
         </header>
       </div>
@@ -210,15 +203,8 @@ main
         </div>
       </main>
 
-      <footer className="mt-8 bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
-          <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI). Hak cipta dilindungi.</p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-stone-900 transition-colors">Tentang web</a>
-            <a href="#" className="hover:text-stone-900 transition-colors">Kebijakan privasi</a>
-          </div>
-        </div>
-      </footer>
+      {/* Reusable Public Footer */}
+      <PublicFooter />
     </div>
   );
 }
