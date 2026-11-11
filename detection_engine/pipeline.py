@@ -55,6 +55,37 @@ def module_findings(result: DetectionResult) -> List[str]:
     return unique[:MAX_FINDINGS]
 
 
+MAX_OCR_TEXT = 1000
+
+
+def module_details(result: DetectionResult) -> Dict[str, Any]:
+    """Evidence a reviewer reads on the admin page, kept small and JSON-safe.
+
+    Keyword and OCR modules give passages ({text, highlights, category}); OCR
+    also gives the text it read from the screenshot.
+    """
+    evidence = result.evidence or {}
+    if result.status != DetectionStatus.OK:
+        return {}
+    details: Dict[str, Any] = {}
+    if result.detector == DetectorType.TEXT_KEYWORD:
+        passages = evidence.get('passages', [])
+    elif result.detector == DetectorType.OCR:
+        passages = (evidence.get('keyword_detection') or {}).get('passages', [])
+        text = evidence.get('ocr_text_preview') or ''
+        if text:
+            details['ocr_text'] = str(text)[:MAX_OCR_TEXT]
+    else:
+        passages = []
+    if passages:
+        details['passages'] = [
+            {'text': str(p['text']), 'highlights': [str(h) for h in p['highlights']],
+             'category': str(p['category'])}
+            for p in passages
+        ]
+    return details
+
+
 class DetectionPipeline:
     """Pipeline that runs all detectors concurrently."""
 
@@ -390,6 +421,7 @@ class DetectionPipeline:
                 'label': result.label,
                 'score': result.score,
                 'findings': module_findings(result),
+                **module_details(result),
             }
         summary['modules'] = modules
 

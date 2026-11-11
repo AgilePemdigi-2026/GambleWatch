@@ -116,6 +116,18 @@ def test_summary_lists_what_each_module_found(pipeline):
     json.dumps(summary)                                     # API must be able to serialise it
 
 
+def test_summary_gives_readable_passages_for_reviewers(pipeline):
+    """Halaman Tindak Lanjut menampilkan kalimat utuh dengan kata kunci yang di-highlight."""
+    text = ("Selamat datang di situs kami. Daftar slot gacor maxwin hari ini, "
+            "bonus new member 100%. Deposit pulsa tanpa potongan.")
+    passages = run(pipeline, "https://contoh.com", text)["modules"]["keyword_analysis"]["passages"]
+    assert passages, "harus ada potongan teks"
+    first = passages[0]
+    assert {"slot", "maxwin"} <= set(first["highlights"])   # satu potongan, banyak kata
+    assert not first["text"].startswith("...amat")           # tidak terpotong di tengah kata
+    assert first["category"]
+
+
 def test_normal_site_is_rendah(pipeline):
     summary = run(pipeline, "https://tokopedia.com", "Belanja online mudah dan terpercaya")
     assert summary["indication"] == "Rendah"
