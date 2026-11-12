@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import PublicHeader from '@/components/PublicHeader';
+import PublicFooter from '@/components/PublicFooter';
 import { createClient } from '@/lib/supabase/client';
+import { AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 
 function ResultContent() {
   const searchParams = useSearchParams();
@@ -14,6 +15,19 @@ function ResultContent() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [data, setData] = useState<any>(null);
+
+  // State untuk Kontrol Pop-Up Modal
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: 'CONFIRM_DISCARD' | 'SUCCESS_SUBMIT' | 'SUCCESS_DISCARD' | 'ERROR';
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'CONFIRM_DISCARD',
+    title: '',
+    message: '',
+  });
 
   useEffect(() => {
     async function fetchAnalysisResult() {
@@ -43,7 +57,6 @@ function ResultContent() {
     setActionLoading(true);
     const supabase = createClient();
 
-    // Lakukan Update ke Supabase
     const { data: updatedRows, error } = await supabase
       .from('laporan_analisis')
       .update({ status: 'SUBMITTED' })
@@ -54,27 +67,44 @@ function ResultContent() {
 
     if (error) {
       console.error('Update Error:', error);
-      alert(`Gagal meng-update status: ${error.message}`);
+      setModalState({
+        isOpen: true,
+        type: 'ERROR',
+        title: 'Gagal Menyimpan',
+        message: `Terjadi kesalahan: ${error.message}`,
+      });
     } else {
-      // Update state data lokal secara instan agar UI langsung menampilkan status SUBMITTED
       if (updatedRows && updatedRows.length > 0) {
         setData(updatedRows[0]);
       } else if (data) {
         setData({ ...data, status: 'SUBMITTED' });
       }
 
-      alert('Laporan berhasil disimpan dan dikirim ke Admin!');
-      router.push('/form-gamblin-analysis');
+      setModalState({
+        isOpen: true,
+        type: 'SUCCESS_SUBMIT',
+        title: 'Berhasil Disimpan!',
+        message: 'Laporan analisis berhasil disimpan dan dikirimkan ke administrator sistem.',
+      });
     }
   };
 
-  // AKSI 2: Buang analisis (Hapus row dari Supabase)
-  const handleDiscard = async () => {
-    if (!confirm('Apakah Anda yakin ingin membuang hasil analisis ini?')) return;
+  // Trigger Pop-Up Konfirmasi Hapus
+  const triggerDiscardConfirm = () => {
+    setModalState({
+      isOpen: true,
+      type: 'CONFIRM_DISCARD',
+      title: 'Buang Analisis?',
+      message: 'Apakah Anda yakin ingin membuang data hasil analisis ini dari sistem?',
+    });
+  };
 
+  // AKSI 2: Eksekusi Hapus dari Supabase
+  const executeDiscard = async () => {
     setActionLoading(true);
-    const supabase = createClient();
+    setModalState((prev) => ({ ...prev, isOpen: false }));
 
+    const supabase = createClient();
     const { error } = await supabase
       .from('laporan_analisis')
       .delete()
@@ -84,9 +114,28 @@ function ResultContent() {
 
     if (error) {
       console.error('Delete Error:', error);
-      alert(`Gagal menghapus laporan: ${error.message}`);
+      setModalState({
+        isOpen: true,
+        type: 'ERROR',
+        title: 'Gagal Menghapus',
+        message: `Terjadi kesalahan saat menghapus: ${error.message}`,
+      });
     } else {
-      alert('Analisis berhasil dibuang.');
+      setModalState({
+        isOpen: true,
+        type: 'SUCCESS_DISCARD',
+        title: 'Analisis Dibuang',
+        message: 'Data analisis telah berhasil dihapus dari sistem.',
+      });
+    }
+  };
+
+  const closeModal = () => {
+    const currentType = modalState.type;
+    setModalState((prev) => ({ ...prev, isOpen: false }));
+    
+    // Redirect setelah sukses simpan atau buang
+    if (currentType === 'SUCCESS_SUBMIT' || currentType === 'SUCCESS_DISCARD') {
       router.push('/form-gamblin-analysis');
     }
   };
@@ -105,7 +154,7 @@ function ResultContent() {
   const probability = isPending 
     ? 'Proses Pemindaian...' 
     : (typeof data?.skor_probabilitas === 'number'
-        ? `${Math.round(data.skor_probabilitas)}% Probability` // kolom berskala 0-100
+        ? `${Math.round(data.skor_probabilitas)}% Probability`
         : '0% Probability');
 
   const urlPattern = data?.url_pattern_analysis || (isPending ? 'Memproses...' : 'Clean / No Pattern');
@@ -114,30 +163,9 @@ function ResultContent() {
   const keywords = data?.keywords_found || (isPending ? 'Memproses...' : 'Keywords Found: None');
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
-      {/* Header */}
-      <div className="px-6 pt-4">
-        <header className="max-w-7xl mx-auto flex justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="GambleWatch Logo" width={36} height={36} className="object-contain" />
-            <span className="font-black text-xl tracking-wider text-[#3B1E12]">
-              GAMBLEWATCH
-            </span>
-          </Link>
+    <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans relative">
+      <PublicHeader activeTab="analysis" />
 
-          <nav className="hidden md:flex items-center gap-8 bg-white/70 px-8 py-2 rounded-full text-xs font-black tracking-wider uppercase text-[#3B1E12]">
-            <Link href="/" className="opacity-70 hover:opacity-100 transition-opacity">HOME</Link>
-            <Link href="/form-gamblin-analysis" className="border-b-2 border-[#3B1E12] pb-0.5">GAMBLING ANALYSIS</Link>
-            <a href="#" className="opacity-70 hover:opacity-100 transition-opacity">FEEDBACK</a>
-          </nav>
-
-          <button className="bg-[#3B1E12] text-white px-6 py-2.5 rounded-full font-black text-xs tracking-wider uppercase">
-            MY ANALYSES
-          </button>
-        </header>
-      </div>
-
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto my-8 px-4 w-full flex-grow">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-3xl font-extrabold text-[#2C1810]">Analysis Results</h1>
@@ -226,7 +254,7 @@ function ResultContent() {
                   : '💾 SAVE TO HISTORY & ALERT ADMIN'}
             </button>
             <button 
-              onClick={handleDiscard}
+              onClick={triggerDiscardConfirm}
               disabled={actionLoading}
               className="bg-white border border-stone-400 text-[#3B1E12] px-6 py-3 rounded-full font-black text-xs tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-stone-50 transition-all text-center disabled:opacity-50"
             >
@@ -236,19 +264,60 @@ function ResultContent() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-[#F7F2EB] rounded-t-3xl px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-600 font-medium">
-          <p>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI)</p>
-          <div className="flex items-center gap-6">
-            <a href="#">About Web</a>
-            <a href="#">Privacy Policy</a>
-            <a href="#" className="bg-white border border-stone-300 text-stone-800 px-5 py-2 rounded-full font-semibold shadow-sm">
-              Contact Support
-            </a>
+      <PublicFooter />
+
+      {/* POP-UP MODAL KUSTOM (Aman untuk Deploy) */}
+      {modalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[#FFFDF9] border border-stone-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center flex flex-col items-center">
+            
+            {modalState.type === 'CONFIRM_DISCARD' && (
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 mb-4">
+                <Trash2 className="w-6 h-6" />
+              </div>
+            )}
+
+            {(modalState.type === 'SUCCESS_SUBMIT' || modalState.type === 'SUCCESS_DISCARD') && (
+              <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 mb-4">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+            )}
+
+            {modalState.type === 'ERROR' && (
+              <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center text-rose-700 mb-4">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+            )}
+
+            <h3 className="text-lg font-black text-[#2C1810] mb-2">{modalState.title}</h3>
+            <p className="text-xs text-stone-600 mb-6 leading-relaxed">{modalState.message}</p>
+
+            {modalState.type === 'CONFIRM_DISCARD' ? (
+              <div className="flex items-center gap-3 w-full">
+                <button
+                  onClick={() => setModalState((prev) => ({ ...prev, isOpen: false }))}
+                  className="flex-1 bg-stone-200 text-stone-700 py-2.5 rounded-full text-xs font-bold hover:bg-stone-300 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={executeDiscard}
+                  className="flex-1 bg-rose-600 text-white py-2.5 rounded-full text-xs font-bold hover:bg-rose-700 transition-all shadow-xs"
+                >
+                  Ya, Hapus
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={closeModal}
+                className="w-full bg-[#3B1E12] text-white py-2.5 rounded-full text-xs font-bold hover:bg-[#28130a] transition-all shadow-xs"
+              >
+                OK
+              </button>
+            )}
           </div>
         </div>
-      </footer>
+      )}
     </div>
   );
 }
