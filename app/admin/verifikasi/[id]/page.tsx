@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { BuktiDeteksi } from "@/lib/detection/analysis";
+import AdminHeader from "@/components/AdminHeader";
+import AdminFooter from "@/components/AdminFooter";
 
 interface ReportDetail {
   id: number;
@@ -40,7 +42,9 @@ const MODULE_NAMES: Record<keyof BuktiDeteksi["modul"], string> = {
 
 const RISK_BADGE: Record<string, string> = {
   HIGH: "RISIKO TINGGI (HIGH)",
+  "HIGH RISK": "RISIKO TINGGI (HIGH)",
   MEDIUM: "RISIKO SEDANG (MEDIUM)",
+  "MEDIUM RISK": "RISIKO SEDANG (MEDIUM)",
   LOW: "RISIKO RENDAH (LOW)",
 };
 
@@ -141,27 +145,6 @@ function DetailVerifikasiContent({
             }
           }
 
-feature/integrasi-bdd
-          // Hitung Skor Probabilitas Secara Dinamis Jika Kolom DB Kosong Berdasarkan Risiko
-          const calculatedScore = typeof data.skor_probabilitas === "number"
-            ? data.skor_probabilitas
-            : (data.tingkat_risiko === "HIGH RISK" || data.tingkat_risiko === "HIGH" ? 85 : data.tingkat_risiko === "MEDIUM" ? 55 : 20);
-
-          // Pemetaan Data Murni Dinamis dari Supabase
-          const fetchedReport: ReportDetail = {
-            id: data.id,
-            urlSitus: data.url_situs || data.url || "-",
-            pelapor: data.pelapor || (data.user_id ? `user_${data.user_id.slice(0, 8)}` : "user_anon_01"),
-            waktuDeteksiTanggal: tanggalFormatted,
-            waktuDeteksiJam: jamFormatted,
-            ipAddress: data.ip_address || "104.21.49.182",
-            ipLocation: data.ip_location || "Cloudflare, Inc. (SG)",
-            metodeTemuan: data.metode_temuan || "GambleWatch AI Engine v4.2",
-            skorProbabilitas: calculatedScore,
-            tingkatRisiko: data.tingkat_risiko || "PENDING",
-            status: data.status || "Menunggu Verifikasi (Pending)",
-            nomorSurat: data.nomor_surat || `KOMDIGI/DIT-APT/VI/2026/${data.id}`,
-
           // Hasil mesin deteksi (DET-01..04); laporan lama sebelum kolom ini ada bernilai null
           const bukti: BuktiDeteksi | null = data.bukti_deteksi ?? null;
           const skor = typeof data.skor_probabilitas === "number" ? Math.round(data.skor_probabilitas) : 0;
@@ -180,28 +163,10 @@ feature/integrasi-bdd
             tingkatRisiko: data.tingkat_risiko || "PENDING",
             status: data.status || "Menunggu Verifikasi (Pending)",
             nomorSurat: data.nomor_surat || "",
-main
             catatanAdmin: data.catatan_admin || "",
             distribusiOtomatis: data.distribusi_otomatis ?? true,
             simpanArsip: data.simpan_arsip ?? true,
             screenshotUrl: finalScreenshotUrl,
-feature/integrasi-bdd
-
-            // Snippets Dinamis Berdasarkan Deskripsi/Kolom Laporan Asli
-            snippets: Array.isArray(data.snippets) && data.snippets.length > 0 
-              ? data.snippets 
-              : [
-                  {
-                    frase: data.deskripsi || data.catatan || `Terindikasi potensi pelanggaran perjudian pada situs ${data.url_situs || data.url || 'terkait'}.`,
-                    highlights: [data.tingkat_risiko || "terindikasi"],
-                    dom: `DOM: <main_report_id_${data.id}>`,
-                    kategori: `Kategori: ${data.tingkat_risiko || 'Analisis Otomatis'}`,
-                  }
-                ],
-            auditLogs: [
-              { tanggal: `${tanggalFormatted} ${jamFormatted}`, petugas: "System (Crawler AI)", aksi: `Deteksi Otomatis Laporan #${data.id} (Skor: ${calculatedScore})` },
-              { tanggal: `${tanggalFormatted} ${jamFormatted}`, petugas: "Admin Verifikator", aksi: "Membuka Tiket Laporan" },
-
             snippets: snippetsFrom(bukti),
             auditLogs: [
               {
@@ -209,7 +174,6 @@ feature/integrasi-bdd
                 petugas: "Sistem (mesin deteksi DET-01..04)",
                 aksi: bukti ? `Deteksi Otomatis (Skor: ${skor}, ${bukti.indikasi})` : "Laporan dibuat tanpa hasil deteksi",
               },
-main
             ],
           };
 
@@ -240,8 +204,6 @@ main
   };
 
   // Handler Headless Snapshot
-  // Scraper otomatis belum ada (rencana sprint 3, docs/RANCANGAN_SCRAPER.md); sebelumnya
-  // tombol ini memasang gambar contoh seolah-olah snapshot berhasil diambil.
   const handleHeadlessSnapshot = async () => {
     setIsSnapshotting(false);
     toast.info("Headless snapshot belum tersedia: scraper otomatis direncanakan di sprint 3. Gunakan Unggah Manual.");
@@ -274,11 +236,11 @@ main
 
       const publicUrl = publicUrlData.publicUrl;
       const numericId = parseInt(reportId, 10);
-      // Kolom bukti di tabel adalah bukti_screenshot (screenshot_url tidak ada)
       const { error: updateError } = await supabase
         .from("laporan_analisis")
         .update({ bukti_screenshot: publicUrl })
         .eq("id", numericId);
+
       if (updateError) {
         toast.error("Gambar terunggah, tetapi gagal disimpan ke laporan: " + updateError.message, { id: "upload-toast" });
         return;
@@ -333,7 +295,7 @@ main
 
   // Handler Kirim Sampel ke Bareskrim
   const handleKirimBareskrim = () => {
-    toast.info(`Sampel Laporan #${reportId} dengan Nomor Surat "${nomorSurat}" telah dikirim ke antrean Bareskrim Polri!`);
+    toast.info(`Sampel Laporan #${reportId} dengan Nomor Surat "${nomorSurat || "-"}" telah dikirim ke antrean Bareskrim Polri!`);
   };
 
   // Handler Cancel
@@ -361,28 +323,7 @@ main
       />
 
       <div>
-        {/* Header Navbar */}
-        <header className="bg-white border-b border-[#EFECE6] px-10 py-3.5 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="relative w-8 h-8 flex-shrink-0">
-              <Image src="/logo.png" alt="Logo GambleWatch" fill className="object-contain" priority />
-            </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-wider block leading-tight text-[#1A1A1A]">GAMBLEWATCH</span>
-              <span className="text-[10px] text-gray-400 block leading-tight font-medium">Deteksi perjudian online ilegal</span>
-            </div>
-          </div>
-
-          <nav className="bg-[#F6F3EC] p-1 rounded-full flex items-center gap-1 text-xs font-medium">
-            <Link href="/admin" className="px-4 py-1.5 text-gray-600 hover:text-black">Beranda</Link>
-            <Link href="/admin/hasil-klasifikasi" className="bg-white text-[#2C221E] px-4 py-1.5 rounded-full font-bold shadow-xs">Analisis perjudian</Link>
-            <Link href="#" className="px-4 py-1.5 text-gray-600 hover:text-black">Umpan balik</Link>
-          </nav>
-
-          <button suppressHydrationWarning className="bg-[#4A2E18] hover:bg-[#382212] text-white text-xs px-5 py-2 rounded-full font-semibold transition cursor-pointer">
-            Analisis saya
-          </button>
-        </header>
+        <AdminHeader />
 
         {/* Main Body */}
         <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
@@ -396,19 +337,7 @@ main
               <span className="font-bold text-[#1A1A1A]">Tindak Lanjut & Status Pemblokiran</span>
             </div>
             <div className="flex items-center gap-3">
-feature/integrasi-bdd
-              <span className={`text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider ${
-                report?.tingkatRisiko === 'HIGH' || report?.tingkatRisiko === 'HIGH RISK' 
-                  ? 'bg-[#3D0C02]' 
-                  : report?.tingkatRisiko === 'MEDIUM' 
-                  ? 'bg-[#C48C46]' 
-                  : 'bg-[#6A8259]'
-              }`}>
-                ● PRIORITAS: {report?.tingkatRisiko || 'PENDING'}
-              </span>
-              <span className="font-semibold text-gray-600 text-xs">Tiket ID: #GW-2026-{report?.id.toString().padStart(4, '0')}</span>
-
-              {report?.tingkatRisiko === "HIGH" && (
+              {(report?.tingkatRisiko === "HIGH" || report?.tingkatRisiko === "HIGH RISK") && (
                 <span className="bg-[#3D0C02] text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider">
                   ● PRIORITAS TINGGI (P1)
                 </span>
@@ -416,7 +345,6 @@ feature/integrasi-bdd
               <span className="font-semibold text-gray-600 text-xs">
                 Tiket ID: #GW-{new Date().getFullYear()}-{String(report?.id ?? 0).padStart(4, "0")}
               </span>
-main
             </div>
           </div>
 
@@ -455,22 +383,11 @@ main
                 </div>
               </div>
 
-feature/integrasi-bdd
-              {/* Dynamic Badge Risiko dari Database */}
-              <span className={`text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
-                report?.tingkatRisiko === 'HIGH' || report?.tingkatRisiko === 'HIGH RISK' 
-                  ? 'bg-[#3D0C02]' 
-                  : report?.tingkatRisiko === 'MEDIUM' 
-                  ? 'bg-[#C48C46]' 
-                  : 'bg-[#6A8259]'
-              }`}>
-                ● RISIKO: {report?.tingkatRisiko || 'PENDING'}
-
               <span
                 className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
-                  report?.tingkatRisiko === "HIGH"
+                  report?.tingkatRisiko === "HIGH" || report?.tingkatRisiko === "HIGH RISK"
                     ? "bg-[#3D0C02] text-white"
-                    : report?.tingkatRisiko === "MEDIUM"
+                    : report?.tingkatRisiko === "MEDIUM" || report?.tingkatRisiko === "MEDIUM RISK"
                       ? "bg-[#E5AA70] text-[#3D0C02]"
                       : report?.tingkatRisiko === "LOW"
                         ? "bg-[#DDE5D3] text-[#2F4A22]"
@@ -478,7 +395,6 @@ feature/integrasi-bdd
                 }`}
               >
                 ● {RISK_BADGE[report?.tingkatRisiko ?? ""] ?? "MENUNGGU ANALISIS"}
-main
               </span>
             </div>
 
@@ -496,19 +412,21 @@ main
                     <button
                       onClick={handleCopyUrl}
                       title="Salin URL"
-                      className="text-gray-400 hover:text-black text-xs cursor-pointer ml-1"
+                      className="text-gray-500 hover:text-black text-[11px] font-semibold underline cursor-pointer ml-1"
                     >
-                    
+                      Salin
                     </button>
-                    <a
-                      href={report?.urlSitus.startsWith("http") ? report.urlSitus : `https://${report?.urlSitus}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Buka Link"
-                      className="text-gray-400 hover:text-black text-xs"
-                    >
-                    
-                    </a>
+                    {report?.urlSitus && report.urlSitus !== "-" && (
+                      <a
+                        href={report.urlSitus.startsWith("http") ? report.urlSitus : `https://${report.urlSitus}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Buka Link"
+                        className="text-gray-500 hover:text-black text-[11px] font-semibold underline"
+                      >
+                        Buka ↗
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -519,22 +437,13 @@ main
                       <span className="sr-only">Risk Score</span>
                     </span>
                     <span className="text-xs font-extrabold text-[#1A1A1A]">
-feature/integrasi-bdd
-                      {report?.skorProbabilitas} / 100
-
                       {report?.skorProbabilitas ?? 0} / 100
-main
                     </span>
                   </div>
                   <div className="w-full bg-[#E5DFD3] rounded-full h-2.5 overflow-hidden">
                     <div
-feature/integrasi-bdd
                       className="bg-[#3D0C02] h-full rounded-full transition-all duration-500"
-                      style={{ width: `${report?.skorProbabilitas || 0}%` }}
-
-                      className="bg-[#3D0C02] h-full rounded-full"
                       style={{ width: `${Math.min(100, Math.max(0, report?.skorProbabilitas ?? 0))}%` }}
-main
                     />
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-500 font-medium mt-1.5">
@@ -599,8 +508,7 @@ main
               </div>
             </div>
           </div>
-
-          {/* CARD 2: BUKTI & POTONGAN TEKS TEMUAN */}
+{/* CARD 2: BUKTI & POTONGAN TEKS TEMUAN */}
           <div data-testid="evidence" className="bg-[#F6F3EC] rounded-2xl p-6 border border-[#EBE6DA]">
             <span className="sr-only">Evidence</span>
             <div className="flex justify-between items-center mb-4">
@@ -652,13 +560,13 @@ main
                         disabled={isSnapshotting}
                         className="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <span></span> {isSnapshotting ? "Mengambil Snapshot..." : "Jalankan Headless Snapshot"}
+                        {isSnapshotting ? "Mengambil Snapshot..." : "Jalankan Headless Snapshot"}
                       </button>
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <span></span> Unggah Manual
+                        Unggah Manual
                       </button>
                     </div>
                   </div>
@@ -670,11 +578,7 @@ main
                 <span className="sr-only">Flagged Text Snippets</span>
                 <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                   <span>Potongan Teks Terindikasi (Flagged Text Snippets)</span>
-feature/integrasi-bdd
-                  <span>{report?.snippets.length || 0} Frasa Terdeteksi</span>
-
                   <span>{report?.snippets.length ?? 0} Frasa Terdeteksi</span>
-main
                 </div>
 
                 {report && report.snippets.length === 0 && (
@@ -822,7 +726,7 @@ main
                   onClick={handleKirimBareskrim}
                   className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span></span> Kirim Sampel ke Bareskrim
+                  Kirim Sampel ke Bareskrim
                 </button>
 
                 <button
@@ -874,14 +778,7 @@ main
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-[#EFECE6] px-10 py-4 text-xs text-gray-500 flex justify-between items-center mt-8">
-        <div>© 2026 Kementerian Komunikasi dan Digital (KOMDIGI)</div>
-        <div className="flex items-center gap-6">
-          <Link href="#" className="hover:underline">Tentang web</Link>
-          <Link href="#" className="hover:underline">Kebijakan privasi</Link>
-        </div>
-      </footer>
+      <AdminFooter />
     </div>
   );
 }
