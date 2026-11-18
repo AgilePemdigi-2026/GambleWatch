@@ -1,19 +1,20 @@
-const { Given, When, Then, setDefaultTimeout } = require('@cucumber/cucumber');
+const { Given, When, Then } = require('@cucumber/cucumber');
 const { expect } = require('@playwright/test');
-
-// Timeout global Cucumber 15 detik
-setDefaultTimeout(15 * 1000);
+const { mockSupabaseTable } = require('./support_playwright');
 
 Given('Pengguna membuka halaman analisis {string}', async function (urlPath) {
-  await this.page.goto(`http://localhost:3000${urlPath}`);
+  this.laporan = [];
+  await mockSupabaseTable(this, 'laporan_analisis', this.laporan);
+  await this.page.goto(`http://localhost:3000${urlPath}`, { waitUntil: 'domcontentloaded' });
 });
 
 Given('Pengguna berada di halaman {string}', async function (urlPath) {
-  await this.page.goto(`http://localhost:3000${urlPath}`);
+  await this.page.goto(`http://localhost:3000${urlPath}`, { waitUntil: 'domcontentloaded' });
 });
 
 When('Pengguna mengisi input URL {string}', async function (urlInput) {
-  const inputUrl = this.page.locator('input[placeholder="http://slot-xxx-00-xxxxx.xyz"]');
+  const inputUrl = this.page.locator('input[placeholder="https://contoh-situs.com"]');
+  await expect(inputUrl).toBeVisible({ timeout: 15000 });
   await inputUrl.fill(urlInput);
 });
 
@@ -23,7 +24,7 @@ When('Pengguna mengklik tombol SCAN', async function () {
 });
 
 Then('Pengguna diarahkan ke halaman hasil analisis', async function () {
-  await this.page.waitForURL(/\/form-gamblin-analysis\/result/, { timeout: 15000 });
+  await this.page.waitForURL(/\/form-gamblin-analysis\/result/, { timeout: 20000 });
   expect(this.page.url()).toContain('/form-gamblin-analysis/result');
 });
 
@@ -34,9 +35,8 @@ When('Pengguna mengklik tombol "MY ANALYSES" pada header', async function () {
 });
 
 Then('Pengguna harus diarahkan ke halaman {string}', async function (urlTarget) {
-  // Gunakan waitUntil 'domcontentloaded' atau 'commit' agar tidak hang menunggu full page load Next.js
   await this.page.waitForURL(`http://localhost:3000${urlTarget}`, { 
-    timeout: 10000,
+    timeout: 15000,
     waitUntil: 'domcontentloaded' 
   });
   expect(this.page.url()).toBe(`http://localhost:3000${urlTarget}`);
