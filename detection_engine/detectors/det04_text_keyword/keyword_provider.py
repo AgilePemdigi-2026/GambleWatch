@@ -33,7 +33,10 @@ class GamblingKeyword:
 class KeywordProvider:
     """Provides gambling keywords from Supabase with local fallback."""
     
-    # Seed list of Indonesian gambling keywords (from TypeScript code)
+    # Last-resort list, used only when neither Supabase nor data/keywords.json
+    # can be read. Weights must match data/keywords.json (checked by
+    # tests/test_keyword_provider.py): ambiguous words such as "bola" and
+    # "ayam" stay below DET-04's anchor weight (0.5) so they cannot flag a page.
     SEED_KEYWORDS = [
         # Indonesian keywords
         {"term": "judi", "category": "gambling", "weight": 0.9, "active": True, "language": "id"},
@@ -44,14 +47,15 @@ class KeywordProvider:
         {"term": "bandar", "category": "agent", "weight": 0.3, "active": True, "language": "id"},
         {"term": "kasino", "category": "casino", "weight": 0.9, "active": True, "language": "id"},
         {"term": "poker", "category": "card_game", "weight": 0.7, "active": True, "language": "id"},
-        {"term": "domino", "category": "card_game", "weight": 0.6, "active": True, "language": "id"},
+        {"term": "domino", "category": "card_game", "weight": 0.4, "active": True, "language": "id"},
         {"term": "ceme", "category": "card_game", "weight": 0.8, "active": True, "language": "id"},
-        {"term": "bola", "category": "sports", "weight": 0.5, "active": True, "language": "id"},
+        {"term": "bola", "category": "sports", "weight": 0.3, "active": True, "language": "id"},
         {"term": "sabung", "category": "sports", "weight": 0.7, "active": True, "language": "id"},
-        {"term": "ayam", "category": "sports", "weight": 0.6, "active": True, "language": "id"},
+        {"term": "ayam", "category": "sports", "weight": 0.2, "active": True, "language": "id"},
         {"term": "maxwin", "category": "promotion", "weight": 0.7, "active": True, "language": "id"},
         {"term": "gacor", "category": "promotion", "weight": 0.3, "active": True, "language": "id"},
-        {"term": "jackpot", "category": "promotion", "weight": 0.8, "active": True, "language": "id"},
+        # "dapat jackpot" is everyday wording (snack prizes); not enough alone
+        {"term": "jackpot", "category": "promotion", "weight": 0.45, "active": True, "language": "id"},
         {"term": "sbobet", "category": "brand", "weight": 0.9, "active": True, "language": "id"},
         {"term": "ibcbet", "category": "brand", "weight": 0.8, "active": True, "language": "id"},
         {"term": "maxbet", "category": "brand", "weight": 0.8, "active": True, "language": "id"},
@@ -60,7 +64,7 @@ class KeywordProvider:
         # English keywords
         {"term": "casino", "category": "casino", "weight": 0.9, "active": True, "language": "en"},
         {"term": "gamble", "category": "gambling", "weight": 0.8, "active": True, "language": "en"},
-        {"term": "bet", "category": "betting", "weight": 0.7, "active": True, "language": "en"},
+        {"term": "bet", "category": "betting", "weight": 0.6, "active": True, "language": "en"},
         {"term": "poker", "category": "card_game", "weight": 0.7, "active": True, "language": "en"},
         {"term": "lottery", "category": "lottery", "weight": 0.8, "active": True, "language": "en"},
         {"term": "roulette", "category": "casino", "weight": 0.8, "active": True, "language": "en"},
@@ -68,8 +72,8 @@ class KeywordProvider:
         {"term": "baccarat", "category": "card_game", "weight": 0.7, "active": True, "language": "en"},
         {"term": "sportsbook", "category": "sports", "weight": 0.8, "active": True, "language": "en"},
         {"term": "wager", "category": "betting", "weight": 0.7, "active": True, "language": "en"},
-        {"term": "odds", "category": "betting", "weight": 0.6, "active": True, "language": "en"},
-        {"term": "stakes", "category": "betting", "weight": 0.6, "active": True, "language": "en"},
+        {"term": "odds", "category": "betting", "weight": 0.3, "active": True, "language": "en"},
+        {"term": "stakes", "category": "betting", "weight": 0.3, "active": True, "language": "en"},
         {"term": "slot", "category": "slot", "weight": 0.7, "active": True, "language": "en"},
     ]
     
@@ -125,27 +129,28 @@ class KeywordProvider:
             return self._keywords_cache
         
         keywords = None
-        
-        # Try Supabase
+
+        # Try Supabase; a fresh copy is saved locally so the engine keeps the
+        # latest list when Supabase is unreachable later
         if self._supabase_client:
             keywords = self._fetch_from_supabase()
-        
+            if keywords:
+                self._save_to_local_file(keywords)
+
         # Try local file
         if not keywords:
             keywords = self._load_from_local_file()
-        
-        # Use seed keywords as last resort
+
+        # Use seed keywords as last resort. Never written to disk: that would
+        # replace a damaged-but-recoverable keywords.json with the short seed.
         if not keywords:
             keywords = self._get_seed_keywords()
             self.logger.info("Using seed keywords as fallback")
-        
+
         # Cache the results
         self._keywords_cache = keywords
         self._cache_timestamp = time.time()
-        
-        # Save to local file for future use
-        self._save_to_local_file(keywords)
-        
+
         return keywords
     
     def _is_cache_valid(self) -> bool:

@@ -90,7 +90,10 @@ export default function HasilKlasifikasiPage() {
         const formattedData: KlasifikasiItem[] = data.map((item) => ({
           id: item.id,
           situsUrl: item.url_situs || "-",
-          dilaporkanOleh: item.pelapor || (item.user_id ? `User (${item.user_id.slice(0, 8)})` : "user_anon_01"),
+          // Tanpa user_id = dikirim tanpa login; "[DATA UJI]" = contoh yang dibuat sistem
+          dilaporkanOleh: item.pelapor
+            || (item.user_id ? `Pengguna (${String(item.user_id).slice(0, 8)})`
+              : String(item.catatan_admin ?? "").startsWith("[DATA UJI]") ? "Data uji (sistem)" : "Anonim"),
           klasifikasi: (item.tingkat_risiko as "HIGH" | "MEDIUM" | "LOW") || "PENDING",
           tanggalDeteksi: item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "-",
         }));

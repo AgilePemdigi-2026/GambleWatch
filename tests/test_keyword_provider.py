@@ -90,6 +90,47 @@ def test_falls_back_to_seed_when_nothing_else_exists(tmp_path):
     assert {"judi", "togel", "slot"} <= terms
 
 
+def test_seed_weights_match_the_keyword_file():
+    """Seed adalah cadangan terakhir; bobotnya harus sama dengan data/keywords.json.
+
+    Dulu seed memberi "bola" 0.5 (sama dengan ambang jangkar DET-04) padahal
+    file memberi 0.3, sehingga saat file hilang halaman sepak bola ikut ditandai.
+    """
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "data" / "keywords.json"
+    weights = {item["term"]: item["weight"] for item in json.loads(path.read_text(encoding="utf-8"))}
+    different = {k["term"]: (k["weight"], weights[k["term"]])
+                 for k in KeywordProvider.SEED_KEYWORDS
+                 if k["term"] in weights and k["weight"] != weights[k["term"]]}
+    assert not different, f"(seed, file): {different}"
+
+
+def test_seed_fallback_never_overwrites_the_local_file(tmp_path):
+    path = tmp_path / "keywords.json"
+    path.write_text("rusak, bukan json", encoding="utf-8")
+    provider = KeywordProvider(local_fallback_path=str(path))
+    provider._supabase_client = FakeSupabase(rows=[])
+
+    assert {"judi", "togel"} <= {k.term for k in provider.get_keywords()}
+    assert path.read_text(encoding="utf-8") == "rusak, bukan json"
+
+
+def test_reading_the_local_file_does_not_rewrite_it(tmp_path):
+    provider = make_provider(tmp_path, FakeSupabase(rows=[]), local=LOCAL)
+    before = (tmp_path / "keywords.json").read_bytes()
+    provider.get_keywords()
+    assert (tmp_path / "keywords.json").read_bytes() == before
+
+
+def test_supabase_keywords_are_saved_for_offline_use(tmp_path):
+    client = FakeSupabase(rows=[{"term": "togel", "category": "lottery", "weight": 0.9,
+                                 "active": True, "language": "id"}])
+    provider = make_provider(tmp_path, client, local=LOCAL)
+    provider.get_keywords()
+    saved = json.loads((tmp_path / "keywords.json").read_text(encoding="utf-8"))
+    assert [k["term"] for k in saved] == ["togel"]
+
+
 def test_cache_avoids_repeat_queries_until_ttl(tmp_path):
     client = FakeSupabase(rows=[{"term": "judi", "category": "g", "weight": 0.9,
                                  "active": True, "language": "id"}])

@@ -93,7 +93,10 @@ class PipelineResult(BaseModel):
     input: DetectionInput
     results: List[DetectionResult]
     created_at: datetime = Field(default_factory=datetime.now)
-    
+    # Wall-clock time of the whole run. Detectors run in parallel, so this is
+    # not the sum of their durations.
+    duration_ms: Optional[int] = None
+
     def get_detector_result(self, detector_type: DetectorType) -> Optional[DetectionResult]:
         """Get result for a specific detector type."""
         for result in self.results:

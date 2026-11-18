@@ -17,6 +17,9 @@ class DetectionConfig(BaseModel):
     url_pattern_high_risk_threshold: float = 0.6  # DET-01
     text_keyword_score_threshold: float = 0.3  # DET-04
     visual_similarity_match_threshold: float = 0.7  # DET-02 (pHash distance <= 6)
+    # CLIP cosine similarity between any two web screenshots is often 0.6-0.8,
+    # so CLIP needs a much stricter bar. Not yet calibrated on real data.
+    visual_similarity_clip_threshold: float = 0.92
 
     # Indication level of the combined score (PRD: Rendah / Sedang / Tinggi)
     indication_medium_threshold: float = 0.4

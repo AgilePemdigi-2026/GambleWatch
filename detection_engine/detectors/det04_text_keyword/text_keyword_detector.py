@@ -13,6 +13,9 @@ from detection_engine.models.detection_models import (
 )
 from detection_engine.detectors.det04_text_keyword.text_normalizer import TextNormalizer
 from detection_engine.detectors.det04_text_keyword.keyword_provider import KeywordProvider, GamblingKeyword
+from detection_engine.config.gambling_brands import (
+    STEM_NUMBER, STEM_NUMBER_SPACED, WORD_GAMBLING_NUMBER,
+)
 
 
 class TextKeywordDetector:
@@ -120,7 +123,10 @@ class TextKeywordDetector:
 
         # Exact matching first
         for keyword in keywords:
-            positions = self._find_all_positions(text, keyword.term)
+            # Other spellings ("alexis 17", "jodol") count as the keyword itself
+            spellings = {keyword.term, *(keyword.variations or []), *(keyword.aliases or [])}
+            positions = sorted({p for spelling in spellings if spelling.strip()
+                                for p in self._find_all_positions(text, spelling)})
             if positions:
                 exact_terms.add(keyword.term)
                 matches.append({
@@ -130,6 +136,26 @@ class TextKeywordDetector:
                     'positions': positions,
                 })
 
+        # Brand names <word><number> ("zeus123", "hoki138", "slot 88"): too many to
+        # list as keywords, so they are matched by pattern (shared with DET-01).
+        brands: Dict[str, Tuple[float, List[int]]] = {}
+        for pattern, weight in self.BRAND_PATTERNS:
+            for found in pattern.finditer(text):
+                term = found.group()
+                if term in exact_terms:
+                    continue
+                best, positions = brands.get(term, (0.0, []))
+                brands[term] = (max(best, weight), positions + [found.start()])
+        for term, (weight, positions) in brands.items():
+            exact_terms.add(term)
+            matches.append({
+                'keyword': GamblingKeyword(term=term, category='brand', weight=weight,
+                                           active=True, language='id'),
+                'match_type': 'exact',
+                'confidence': 1.0,
+                'positions': sorted(set(positions)),
+            })
+
         # Fuzzy matching (typos) for longer text, only for keywords that did
         # not already match exactly so nothing is counted twice
         if len(text) > 50 and self.fuzzy_threshold > 0:
@@ -137,16 +163,29 @@ class TextKeywordDetector:
                 k for k in keywords
                 if k.term not in exact_terms and len(k.term) >= self.MIN_FUZZY_LENGTH
             ]
-            matches.extend(self._fuzzy_match(text, candidates, timeout))
+            # A word that is itself a keyword ("bandar") is not a typo of a
+            # longer one ("bandarq"); it is matched, or not, on its own.
+            known = {k.term.lower() for k in keywords}
+            matches.extend(self._fuzzy_match(text, candidates, timeout, exclude=known))
 
         return matches
+
+    # Brand-name patterns and their weight (both anchor: >= ANCHOR_WEIGHT)
+    BRAND_PATTERNS = (
+        (STEM_NUMBER, 0.7),            # zeus123, hoki138, mpo500
+        (STEM_NUMBER_SPACED, 0.7),     # "zeus 123", "slot 88"
+        (WORD_GAMBLING_NUMBER, 0.6),   # petir388, naga303 (glued only: not "pasal 303")
+    )
 
     # Terms this short or shorter must match as whole words ("bet" must not
     # match "alphabet"); longer terms may appear inside compound words
     # ("togelonline", "slotgacor").
     WHOLE_WORD_MAX_LENGTH = 4
-    # Shorter terms produce too many false fuzzy matches
-    MIN_FUZZY_LENGTH = 6
+    # Shorter terms produce too many false fuzzy matches: every 6-letter
+    # keyword has everyday words one letter away ("sabung" ~ "sabun",
+    # "sambung"; "kasino" ~ "kasih"). Disguised short keywords are still
+    # caught exactly after leetspeak normalisation ("k4sino" -> "kasino").
+    MIN_FUZZY_LENGTH = 7
     # Keywords at or above this weight get the repetition bonus
     STRONG_KEYWORD_WEIGHT = 0.6
 
@@ -165,8 +204,8 @@ class TextKeywordDetector:
         """Find all positions of term in (already lowercase) text."""
         return [m.start() for m in self._term_pattern(term).finditer(text)]
     
-    def _fuzzy_match(self, text: str, keywords: List[GamblingKeyword], 
-                     timeout: float) -> List[Dict[str, Any]]:
+    def _fuzzy_match(self, text: str, keywords: List[GamblingKeyword],
+                     timeout: float, exclude: Optional[set] = None) -> List[Dict[str, Any]]:
         """Catch typos of single-word keywords by comparing whole words.
 
         Words are compared with the keyword, and only words within one letter
@@ -176,10 +215,15 @@ class TextKeywordDetector:
         as a real one-letter typo of "taruhan". Whole-word comparison tells
         them apart: "taruhn" and "tarruhan" match, "dipertaruhkan" cannot.
         Multi-word keywords are not fuzzy-matched.
+
+        The candidate word must also start with the keyword's first letter.
+        Disguised keywords keep their first letter ("taruhn", "jackpott"),
+        while ordinary words one letter away usually differ right there:
+        "setting" and "getting" are not typos of "betting".
         """
         matches = []
         by_length: Dict[int, List[str]] = {}
-        for word in set(re.findall(r'[a-z]{4,}', text)):
+        for word in set(re.findall(r'[a-z]{4,}', text)) - (exclude or set()):
             by_length.setdefault(len(word), []).append(word)
 
         try:
@@ -188,7 +232,7 @@ class TextKeywordDetector:
                 if ' ' in term:
                     continue
                 candidates = [w for n in (len(term) - 1, len(term), len(term) + 1)
-                              for w in by_length.get(n, ())]
+                              for w in by_length.get(n, ()) if w[0] == term[0]]
                 if not candidates:
                     continue
                 best = process.extractOne(term, candidates, scorer=fuzz.ratio,
@@ -244,6 +288,9 @@ class TextKeywordDetector:
         'freebet', 'free spin', 'scatter', 'link alternatif', 'rtp live', 'rtp slot',
         'daftar sekarang', 'situs resmi', 'gampang menang', 'anti rungkad', 'pola gacor',
         'tanpa potongan', 'deposit pulsa', 'bocoran', 'welcome bonus',
+        'scatter hitam', 'jam gacor', 'pola slot', 'rtp gacor', 'modal receh', 'depo receh',
+        'auto wd', 'wd lancar', 'gampang maxwin', 'bonus rollingan', 'slot thailand',
+        'server thailand', 'akun pro', 'situs gacor', 'link gacor', 'slot dana', 'depo dana',
     )
     INFO_CUES = (
         'diblokir', 'pemblokiran', 'memblokir', 'blokir', 'polisi', 'polri', 'bareskrim',
@@ -354,8 +401,63 @@ class TextKeywordDetector:
                 'match_types': list(data['match_types']),
                 'snippets': data['snippets'][:3],  # Limit snippets
             })
-        
+
+        evidence['passages'] = self._passages(matches, text)
         return evidence
+
+    # Context kept on each side of a keyword in a passage, and passages kept
+    PASSAGE_CONTEXT = 60
+    MAX_PASSAGES = 5
+
+    def _passages(self, matches: List[Dict[str, Any]], text: str) -> List[Dict[str, Any]]:
+        """Readable excerpts for reviewers: whole words around the keywords found.
+
+        Overlapping windows are merged, so one sentence with "slot gacor maxwin"
+        becomes one passage highlighting all three. Positions are looked up again
+        in `text`, since a match may have come from another normalised variant.
+        """
+        windows = []  # (start, end, keyword, spelling)
+        for match in matches:
+            if match['match_type'] != 'exact':
+                continue
+            keyword = match['keyword']
+            spellings = {keyword.term, *(keyword.variations or []), *(keyword.aliases or [])}
+            for spelling in spellings:
+                if not spelling.strip():
+                    continue
+                for pos in self._find_all_positions(text, spelling)[:3]:
+                    start = max(0, pos - self.PASSAGE_CONTEXT)
+                    end = min(len(text), pos + len(spelling) + self.PASSAGE_CONTEXT)
+                    # Widen to whole words
+                    while start > 0 and not text[start - 1].isspace():
+                        start -= 1
+                    while end < len(text) and not text[end].isspace():
+                        end += 1
+                    windows.append((start, end, keyword, spelling))
+        if not windows:
+            return []
+
+        windows.sort(key=lambda w: w[0])
+        merged = []  # [start, end, {spelling: keyword}]
+        for start, end, keyword, spelling in windows:
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+                merged[-1][2][spelling] = keyword
+            else:
+                merged.append([start, end, {spelling: keyword}])
+
+        passages = []
+        for start, end, found in merged:
+            heaviest = max(found.values(), key=lambda k: k.weight)
+            excerpt = text[start:end].strip()
+            passages.append({
+                'text': ('...' if start > 0 else '') + excerpt + ('...' if end < len(text) else ''),
+                'highlights': sorted(found, key=len, reverse=True),
+                'category': heaviest.category,
+                'weight': heaviest.weight,
+            })
+        passages.sort(key=lambda p: p['weight'], reverse=True)
+        return passages[:self.MAX_PASSAGES]
     
     def _create_skipped_result(self, reason: str, start_time: float) -> DetectionResult:
         """Create skipped result."""
