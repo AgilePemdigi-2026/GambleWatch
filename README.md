@@ -1,4 +1,4 @@
-# 🎯 GambleWatch
+# GambleWatch
 ### Sistem Deteksi dan Verifikasi Situs Judi Online
 
 GambleWatch merupakan aplikasi berbasis web yang dikembangkan untuk membantu masyarakat mengidentifikasi dan melaporkan situs yang terindikasi sebagai situs judi online. Sistem ini menggunakan beberapa metode analisis untuk mendeteksi indikasi aktivitas judi online berdasarkan URL, kemiripan visual, teks, dan hasil OCR.
