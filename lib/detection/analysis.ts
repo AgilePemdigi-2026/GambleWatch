@@ -17,6 +17,23 @@ export interface ModuleResult {
   ocr_text?: string; // ocr
 }
 
+// Hasil membuka link (POST /scan). Tidak ada bila hanya gambar yang dianalisis.
+export interface ScanInfo {
+  status: 'SUCCESS' | 'FAILED' | 'BLOCKED';
+  failure_code: string | null; // DNS, TIMEOUT, BOT_PROTECTION, BLOCKED, ...
+  message: string; // penjelasan siap tampil, mis. "Halaman berhasil dibuka dan isinya dianalisis."
+  requested_url: string;
+  final_url: string | null; // setelah redirect
+  http_status: number | null;
+  title: string | null;
+  redirect_chain: string[];
+  text_chars: number;
+  links: number;
+  load_ms: number | null;
+  screenshot_source: 'halaman' | 'unggahan' | null;
+  screenshot_base64: string | null; // PNG/JPEG layar pertama halaman, untuk disimpan sebagai bukti
+}
+
 export interface DetectionSummary {
   request_id: string;
   overall_score: number; // 0..1
@@ -24,6 +41,7 @@ export interface DetectionSummary {
   indication: 'Rendah' | 'Sedang' | 'Tinggi';
   processing_time_ms: number;
   modules: Record<ModuleKey, ModuleResult>;
+  scan?: ScanInfo;
 }
 
 // Kolom laporan_analisis yang diisi dari hasil deteksi.
@@ -52,6 +70,21 @@ export interface BuktiModul {
   temuan: string[];
 }
 
+// Halaman yang dibuka saat analisis (tanpa screenshot: itu disimpan di Storage/bukti_screenshot)
+export interface HalamanDipindai {
+  status: ScanInfo['status'];
+  kode_gagal: string | null;
+  keterangan: string;
+  url_diminta: string;
+  url_akhir: string | null;
+  kode_http: number | null;
+  judul: string | null;
+  rantai_redirect: string[];
+  jumlah_karakter_teks: number;
+  jumlah_link: number;
+  sumber_screenshot: ScanInfo['screenshot_source'];
+}
+
 export interface BuktiDeteksi {
   versi: 1;
   request_id: string;
@@ -62,6 +95,7 @@ export interface BuktiDeteksi {
   modul: Record<ModuleKey, BuktiModul>;
   potongan_teks: PotonganTeks[];
   teks_ocr: string | null;
+  halaman?: HalamanDipindai | null; // tidak ada pada laporan sebelum fitur pemindaian link
 }
 
 const MODULE_KEYS: ModuleKey[] = ['url_pattern', 'visual_similarity', 'ocr', 'keyword_analysis'];
@@ -94,6 +128,23 @@ export function toBuktiDeteksi(summary: DetectionSummary, analysedAt = new Date(
       ...potongan(summary.modules.ocr?.passages, 'screenshot (OCR)'),
     ],
     teks_ocr: summary.modules.ocr?.ocr_text ?? null,
+    halaman: summary.scan ? toHalaman(summary.scan) : null,
+  };
+}
+
+function toHalaman(scan: ScanInfo): HalamanDipindai {
+  return {
+    status: scan.status,
+    kode_gagal: scan.failure_code,
+    keterangan: scan.message,
+    url_diminta: scan.requested_url,
+    url_akhir: scan.final_url,
+    kode_http: scan.http_status,
+    judul: scan.title,
+    rantai_redirect: scan.redirect_chain,
+    jumlah_karakter_teks: scan.text_chars,
+    jumlah_link: scan.links,
+    sumber_screenshot: scan.screenshot_source,
   };
 }
 
@@ -126,7 +177,9 @@ export function toLaporanFields(summary: DetectionSummary): LaporanDetectionFiel
       ? `Ditemukan: ${[...new Set(words)].join(', ')}`
       : keywordModule?.status === 'ok' || ocr?.status === 'ok'
         ? 'Tidak ditemukan kata kunci judi'
-        : 'Tidak dianalisis (tidak ada teks halaman)',
+        : summary.scan && summary.scan.status !== 'SUCCESS'
+          ? `Tidak dianalisis (${summary.scan.message.replace(/ Dinilai dari URL saja\.$/, '')})`
+          : 'Tidak dianalisis (tidak ada teks halaman)',
     bukti_deteksi: toBuktiDeteksi(summary),
   };
 }

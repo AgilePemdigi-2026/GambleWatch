@@ -2,8 +2,8 @@
 //
 // Menjalankan:   npm run test:bdd
 // Prasyarat:     web Next.js di http://localhost:3000 (npm run dev) dan, untuk modul DET,
-//                API deteksi di http://127.0.0.1:8000
-//                (python -m uvicorn detection_engine.api.main:app --port 8000).
+//                API deteksi di http://127.0.0.1:8001
+//                (python -m uvicorn detection_engine.api.main:app --port 8001).
 // Variabel opsional: BASE_URL, DETECTION_API_URL, HEADED=1 (tampilkan browser).
 //
 // Halaman admin diuji dengan respons Supabase yang DISIMULASIKAN (page.route), sehingga
@@ -15,7 +15,7 @@ const {
 const { chromium } = require('playwright');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const API_URL = process.env.DETECTION_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.DETECTION_API_URL || 'http://127.0.0.1:8001';
 
 setDefaultTimeout(90 * 1000);
 

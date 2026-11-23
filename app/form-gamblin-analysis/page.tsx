@@ -5,7 +5,18 @@ import { useRouter } from 'next/navigation';
 import PublicHeader from '@/components/PublicHeader';
 import PublicFooter from '@/components/PublicFooter';
 import { createClient } from '@/lib/supabase/client';
+import { toLaporanFields, type DetectionSummary } from '@/lib/detection/analysis';
+import { validateReportUrl } from '@/lib/detection/url';
 import { Upload, Search, RotateCw } from 'lucide-react';
+
+// Screenshot halaman dari hasil pemindaian link (base64) -> berkas untuk Supabase Storage
+function screenshotFromScan(summary: DetectionSummary): File | null {
+  const data = summary.scan?.screenshot_base64;
+  if (!data || summary.scan?.screenshot_source !== 'halaman') return null;
+  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+  return new File([bytes], `halaman.${isPng ? 'png' : 'jpg'}`, { type: isPng ? 'image/png' : 'image/jpeg' });
+}
 
 export default function GamblingAnalysisFormPage() {
   const router = useRouter();
@@ -22,19 +33,38 @@ export default function GamblingAnalysisFormPage() {
       setErrorMessage('Masukkan URL atau unggah tangkapan layar terlebih dahulu.');
       return;
     }
+    const urlError = validateReportUrl(url);
+    if (urlError) {
+      setErrorMessage(urlError);
+      return;
+    }
 
     setErrorMessage('');
     setLoading(true);
 
     try {
-      let publicImageUrl = null;
+      // 1. Mesin deteksi: bila ada URL, layanan membuka link-nya lalu menilai URL,
+      //    isi teks halaman, dan screenshot halaman (DET-01..04). Lihat app/api/analyze.
+      const body = new FormData();
+      if (url.trim()) body.set('url', url.trim());
+      if (file) body.set('screenshot', file);
+      const response = await fetch('/api/analyze', { method: 'POST', body });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        setErrorMessage(result?.message ?? 'Gagal melakukan analisis. Silakan coba beberapa saat lagi.');
+        return;
+      }
+      const summary = result.summary as DetectionSummary;
 
-      if (file) {
-        const fileExt = file.name.split('.').pop();
+      // 2. Bukti gambar: unggahan pengguna, atau screenshot halaman yang dipindai
+      let publicImageUrl: string | null = null;
+      const evidence = file ?? screenshotFromScan(summary);
+      if (evidence) {
+        const fileExt = evidence.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { error: uploadErr } = await supabase.storage
           .from('bukti-analisis')
-          .upload(fileName, file);
+          .upload(fileName, evidence);
 
         if (!uploadErr) {
           const { data: publicUrlData } = supabase.storage
@@ -44,28 +74,14 @@ export default function GamblingAnalysisFormPage() {
         }
       }
 
-      const isHighRisk = url.toLowerCase().includes('slot') || 
-                         url.toLowerCase().includes('gacor') || 
-                         url.toLowerCase().includes('judi') || 
-                         url.toLowerCase().includes('bet');
-                         
-      const riskLevel = isHighRisk ? 'HIGH RISK' : 'LOW RISK';
-      const scoreProb = isHighRisk ? 95 : 10;
-      const keywords = isHighRisk ? 'slot, gacor, judi' : '-';
-      const patternDesc = isHighRisk 
-        ? `High Risk (${scoreProb}%): Gambling keyword in domain detected` 
-        : 'Low Risk: Domain disinyalir aman';
-
+      // 3. Simpan laporan dengan hasil deteksi asli (risiko, skor, temuan, bukti_deteksi)
       const { data: insertedData, error: dbErr } = await supabase
         .from('laporan_analisis')
         .insert({
           url_situs: url.trim() || 'Hanya Unggahan Gambar',
           bukti_screenshot: publicImageUrl,
-          tingkat_risiko: riskLevel,
-          skor_probabilitas: scoreProb,
-          keywords_found: keywords,
-          url_pattern_analysis: patternDesc,
           status: 'DRAFT',
+          ...toLaporanFields(summary),
         })
         .select('id')
         .single();
@@ -73,7 +89,7 @@ export default function GamblingAnalysisFormPage() {
       if (dbErr) throw dbErr;
 
       router.push(`/form-gamblin-analysis/result?id=${insertedData.id}`);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error scanning:', err);
       setErrorMessage('Gagal melakukan analisis. Silakan coba beberapa saat lagi.');
     } finally {
@@ -103,13 +119,16 @@ export default function GamblingAnalysisFormPage() {
               </label>
               <input
                 type="text"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
                 placeholder="https://contoh-situs.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full px-5 py-3.5 bg-white border border-[#E2D7C7] rounded-full text-xs text-[#2C1810] focus:outline-none focus:border-stone-400 font-medium shadow-2xs text-center"
               />
               <p className="text-[10px] text-stone-400 text-center mt-2">
-                ⓘ Proses pemindaian URL membutuhkan waktu 10-30 detik.
+                ⓘ Masukkan link lengkap diawali https:// (contoh: https://contoh-situs.com). Sistem akan membuka link dan memeriksa isinya; proses membutuhkan waktu 10-30 detik.
               </p>
             </div>
 

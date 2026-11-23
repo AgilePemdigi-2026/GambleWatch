@@ -125,3 +125,155 @@ def test_real_pipeline_flags_obvious_gambling_url():
         "page_text": "Daftar slot gacor maxwin, deposit pulsa, jackpot, bonus new member"})
     assert response.status_code == 200
     assert response.json()["indication"] == "Tinggi"
+
+
+# --- POST /scan: membuka link lalu menilai isinya ------------------------------------
+
+import base64  # noqa: E402
+
+from detection_engine.api.main import get_scanner  # noqa: E402
+from detection_engine.scraper.fetcher import PageCapture, ScrapeOutcome  # noqa: E402
+
+
+class FakeScanner:
+    def __init__(self, outcome: ScrapeOutcome):
+        self.outcome = outcome
+        self.urls = []
+
+    async def fetch(self, url):
+        self.urls.append(url)
+        return self.outcome
+
+
+def page_capture(text="Daftar slot gacor maxwin hari ini", screenshot=None) -> PageCapture:
+    return PageCapture(
+        requested_url="https://situs-netral.example/", final_url="https://situs-netral.example/home",
+        http_status=200, redirect_chain=["https://situs-netral.example/"], title="Beranda",
+        meta_description="", text=text, screenshot=screenshot or png_bytes(),
+        outbound_links=["https://link-alternatif.example/"], load_ms=900, user_agent="UA")
+
+
+@pytest.fixture
+def scan_client(client):
+    def use(outcome):
+        scanner = FakeScanner(outcome)
+        app.dependency_overrides[get_scanner] = lambda: scanner
+        return client, scanner
+    return use
+
+
+def test_scan_analyses_page_content_not_only_url(scan_client, stubs):
+    capture = page_capture()
+    client, scanner = scan_client(ScrapeOutcome("SUCCESS", capture=capture))
+
+    response = client.post("/scan", data={"url": "situs-netral.example"})
+
+    assert response.status_code == 200
+    assert scanner.urls == ["situs-netral.example"]
+    # teks halaman masuk DET-04, screenshot halaman masuk DET-02/03, URL akhir masuk DET-01
+    assert stubs["text"].calls == ["Daftar slot gacor maxwin hari ini"]
+    assert stubs["ocr"].calls == [capture.screenshot]
+    assert stubs["visual"].calls == [capture.screenshot]
+    assert stubs["url"].calls == ["https://situs-netral.example/home"]
+    scan = response.json()["scan"]
+    assert scan["status"] == "SUCCESS" and scan["title"] == "Beranda"
+    assert scan["final_url"] == "https://situs-netral.example/home"
+    assert scan["screenshot_source"] == "halaman"
+    assert base64.b64decode(scan["screenshot_base64"]) == capture.screenshot
+
+
+def test_scan_prefers_uploaded_screenshot(scan_client, stubs):
+    uploaded = png_bytes((30, 30))
+    client, _ = scan_client(ScrapeOutcome("SUCCESS", capture=page_capture()))
+
+    response = client.post("/scan", data={"url": "https://situs-netral.example"},
+                           files={"screenshot": ("bukti.png", uploaded, "image/png")})
+
+    assert response.status_code == 200
+    assert stubs["ocr"].calls == [uploaded]
+    scan = response.json()["scan"]
+    assert scan["screenshot_source"] == "unggahan" and scan["screenshot_base64"] is None
+
+
+def test_scan_falls_back_to_url_when_page_cannot_open(scan_client, stubs):
+    client, _ = scan_client(ScrapeOutcome("FAILED", "DNS", "slot88.example: not found"))
+
+    response = client.post("/scan", data={"url": "slot88.example/daftar"})
+
+    assert response.status_code == 200
+    assert stubs["url"].calls == ["https://slot88.example/daftar"]
+    assert stubs["text"].calls == [] and stubs["ocr"].calls == []
+    scan = response.json()["scan"]
+    assert scan["status"] == "FAILED" and scan["failure_code"] == "DNS"
+    assert "Dinilai dari URL saja" in scan["message"]
+
+
+def test_scan_does_not_analyse_block_page_text(scan_client, stubs):
+    capture = page_capture(text="Situs ini diblokir. Internet Positif.")
+    client, _ = scan_client(ScrapeOutcome("BLOCKED", "BLOCKED", "diblokir", capture=capture))
+
+    response = client.post("/scan", data={"url": "https://slot88.example"})
+
+    assert stubs["text"].calls == [] and stubs["ocr"].calls == []
+    scan = response.json()["scan"]
+    assert scan["status"] == "BLOCKED" and scan["screenshot_base64"]   # bukti halaman blokir
+
+
+def test_scan_requires_url(scan_client):
+    client, _ = scan_client(ScrapeOutcome("SUCCESS", capture=page_capture()))
+    assert client.post("/scan", data={"url": "   "}).status_code == 422
+    assert client.post("/scan", data={}).status_code == 422
+
+
+def test_scan_api_key(scan_client, monkeypatch):
+    client, _ = scan_client(ScrapeOutcome("FAILED", "DNS", "x"))
+    monkeypatch.setenv("DETECTION_API_KEY", "rahasia-uji")
+    assert client.post("/scan", data={"url": "a.example"}).status_code == 401
+    assert client.post("/scan", data={"url": "a.example"},
+                       headers={"X-API-Key": "salah"}).status_code == 401
+    assert client.post("/scan", data={"url": "a.example"},
+                       headers={"X-API-Key": "rahasia-uji"}).status_code == 200
+
+
+def test_scan_real_browser_and_pipeline_detect_content_behind_neutral_url(tmp_path, monkeypatch):
+    """Integrasi penuh: Chromium membuka situs uji lokal ber-URL netral, isinya judi."""
+    pytest.importorskip("playwright")
+    import threading
+    from functools import partial
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+    import detection_engine.scraper.safety as safety
+    from detection_engine.api.main import PageScanner
+    from detection_engine.scraper.fetcher import FetchConfig
+
+    (tmp_path / "index.html").write_text(
+        "<html><head><title>Beranda</title></head><body><h1>Daftar Slot Gacor Hari Ini</h1>"
+        "<p>Bonus new member 100%, deposit pulsa tanpa potongan, RTP live, maxwin x500.</p>"
+        "</body></html>", encoding="utf-8")
+
+    class Quiet(SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Quiet, directory=str(tmp_path)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(safety, "ALLOWED_PORTS", (None, server.server_address[1]))
+    scanner = PageScanner(FetchConfig(allow_private=True, nav_timeout_ms=15_000, settle_ms=500))
+    app.dependency_overrides.clear()
+    app.dependency_overrides[get_scanner] = lambda: scanner
+    try:
+        response = TestClient(app).post(
+            "/scan", data={"url": f"http://127.0.0.1:{server.server_address[1]}/index.html"})
+    except Exception as exc:  # Chromium belum di-install
+        pytest.skip(f"Chromium Playwright tidak tersedia: {exc}")
+    finally:
+        app.dependency_overrides.clear()
+        server.shutdown()
+
+    body = response.json()
+    assert response.status_code == 200, body
+    if body["scan"]["status"] == "FAILED" and "Executable" in str(body["scan"]):
+        pytest.skip("Chromium Playwright tidak tersedia")
+    assert body["scan"]["status"] == "SUCCESS" and body["scan"]["title"] == "Beranda"
+    assert body["modules"]["keyword_analysis"]["score"] > 0
+    assert body["indication"] in ("Sedang", "Tinggi")
