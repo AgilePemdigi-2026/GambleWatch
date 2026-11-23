@@ -21,6 +21,11 @@ except ImportError:
     pytesseract = None
     Image = None
 
+# Tesseract word confidence (0-100) below which a word is treated as noise.
+# Measured on data/samples/ocr (62 images) plus an example.com screenshot: 40 removes
+# the noise word that flagged example.com (confidence 21) without losing any gambling image.
+MIN_WORD_CONFIDENCE = 40.0
+
 
 class OCRDetector:
     """DET-03: OCR detector that extracts text from images and uses DET-04."""
@@ -204,29 +209,60 @@ class OCRDetector:
             return image  # Return original if preprocessing fails
     
     def _perform_ocr(self, image: Any, timeout: float) -> str:
-        """Perform OCR on image using Tesseract."""
+        """Perform OCR on image using Tesseract, keeping only confidently read words."""
         try:
             # Configure Tesseract parameters
             custom_config = r'--oem 3 --psm 3'  # OEM 3 = LSTM, PSM 3 = Fully automatic
-            
+
             # pytesseract kills the Tesseract process and raises RuntimeError
             # once `timeout` seconds have passed
-            text = pytesseract.image_to_string(
+            data = pytesseract.image_to_data(
                 image,
                 lang=self._resolve_language(),
                 config=custom_config,
                 timeout=timeout,
+                output_type=pytesseract.Output.DICT,
             )
-            
-            # Clean up text
-            text = text.strip()
-            
+            text = self._confident_text(data)
+
             self.logger.info(f"OCR extracted {len(text)} characters")
             return text
-            
+
         except Exception as e:
             self.logger.error(f"OCR failed: {e}")
             raise
+
+    @staticmethod
+    def _confident_text(data: Dict[str, List[Any]],
+                        min_confidence: float = MIN_WORD_CONFIDENCE) -> str:
+        """Rebuild OCR text from Tesseract word data, dropping low-confidence words.
+
+        Screenshots of ordinary pages (thin fonts, light backgrounds) make Tesseract
+        "read" random short words such as "bet" with very low confidence, which DET-04
+        then flags as gambling terms. Words below `min_confidence` are dropped; line and
+        paragraph breaks are kept so DET-04 passages stay readable.
+        """
+        lines: Dict[tuple, List[str]] = {}
+        for i, word in enumerate(data.get('text', [])):
+            word = (word or '').strip()
+            try:
+                confidence = float(data['conf'][i])
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+            if not word or confidence < min_confidence:
+                continue
+            key = (data['block_num'][i], data['par_num'][i], data['line_num'][i])
+            lines.setdefault(key, []).append(word)
+
+        out: List[str] = []
+        previous_paragraph = None
+        for key in sorted(lines):
+            paragraph = key[:2]
+            if previous_paragraph is not None and paragraph != previous_paragraph:
+                out.append('')
+            out.append(' '.join(lines[key]))
+            previous_paragraph = paragraph
+        return '\n'.join(out).strip()
     
     def _convert_to_ocr_result(self, 
                                text_result: DetectionResult,
