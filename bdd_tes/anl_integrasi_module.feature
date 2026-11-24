@@ -1,24 +1,27 @@
-Feature: Form Analisis Tersambung ke Mesin Deteksi (ANL + DET-06)
+Feature: Form Analisis Situs Perjudian (ANL)
   Sebagai masyarakat
-  Saya ingin URL yang saya laporkan langsung dinilai mesin deteksi
-  Agar laporan yang tersimpan berisi tingkat risiko, skor, dan bukti yang asli
+  Saya ingin menganalisis URL situs melalui form
+  Agar laporan tersimpan dengan tingkat risiko dan hasil analisis yang sesuai
 
   Background:
     Given penyimpanan laporan di Supabase disimulasikan
     And pengguna membuka form analisis situs
 
-  Scenario: Hasil deteksi asli tersimpan saat pengguna menganalisis URL
-    When pengguna menganalisis URL "slotgacor88.bet/daftar" melalui form
-    Then laporan yang tersimpan memiliki tingkat risiko "HIGH"
-    And laporan yang tersimpan memiliki bukti deteksi berindikasi "Tinggi"
-    And halaman hasil analisis menampilkan risiko "HIGH"
+  Scenario Outline: Analisis berbagai URL situs menghasilkan klasifikasi risiko yang sesuai
+    When pengguna memasukkan URL "<url>" pada form
+    And pengguna menekan tombol SCAN
+    Then laporan yang tersimpan memiliki tingkat risiko "<tingkat_risiko>"
+    And laporan yang tersimpan memiliki analisis pola URL berindikasi "<indikasi>"
+    And halaman hasil analisis menampilkan risiko "<tingkat_risiko>"
 
-  Scenario: Situs biasa tersimpan dengan risiko rendah
-    When pengguna menganalisis URL "www.tokopedia.com" melalui form
-    Then laporan yang tersimpan memiliki tingkat risiko "LOW"
+    Examples:
+      | url                       | tingkat_risiko | indikasi  |
+      | slotgacor88.bet/daftar    | HIGH RISK      | High Risk |
+      | situs-judi-online.com     | HIGH RISK      | High Risk |
+      | www.tokopedia.com         | LOW RISK       | Low Risk  |
+      | https://www.komdigi.go.id | LOW RISK       | Low Risk  |
 
-  Scenario: Layanan deteksi tidak dapat dihubungi
-    Given layanan deteksi sedang tidak dapat dihubungi
-    When pengguna menganalisis URL "slotgacor88.bet" melalui form
-    Then form menampilkan pesan "Layanan deteksi tidak dapat dihubungi"
+  Scenario: Form menolak analisis jika URL dan gambar kosong
+    When pengguna menekan tombol SCAN
+    Then form menampilkan pesan "Masukkan URL atau unggah tangkapan layar terlebih dahulu."
     And tidak ada data yang ditulis ke Supabase

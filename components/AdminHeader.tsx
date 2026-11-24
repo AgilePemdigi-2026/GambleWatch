@@ -1,14 +1,37 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface AdminHeaderProps {
   activeTab?: 'beranda' | 'analisis' | 'feedback';
 }
 
 export default function AdminHeader({ activeTab = 'beranda' }: AdminHeaderProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+
+      router.replace('/sign-in/sign-in-admin');
+      router.refresh();
+    } catch (error) {
+      console.error('Admin logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <div className="px-6 pt-4">
       <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-8 py-3 bg-[#F7F2EB] rounded-full shadow-sm gap-4">
@@ -54,7 +77,18 @@ export default function AdminHeader({ activeTab = 'beranda' }: AdminHeaderProps)
           </Link>
         </nav>
 
-        <div className="w-[180px] hidden md:block"></div>
+        <div className="md:w-[180px] flex justify-end">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title="Keluar dari akun admin"
+            className="flex items-center gap-1.5 bg-[#3B1E12] text-white hover:bg-red-800 px-5 py-2 rounded-full font-bold text-xs transition-all tracking-wider cursor-pointer disabled:opacity-50"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>{isLoggingOut ? 'Keluar...' : 'Logout'}</span>
+          </button>
+        </div>
       </header>
     </div>
   );

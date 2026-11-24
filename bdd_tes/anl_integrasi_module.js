@@ -1,5 +1,3 @@
-// Step ANL + DET-06: form /form-gamblin-analysis memanggil /api/analyze (mesin deteksi asli),
-// lalu menyimpan ke laporan_analisis. Penyimpanan Supabase disimulasikan.
 const assert = require('node:assert/strict');
 const { Given, When, Then } = require('@cucumber/cucumber');
 const { mockSupabaseTable, expectText } = require('./support_playwright');
@@ -12,31 +10,24 @@ Given('penyimpanan laporan di Supabase disimulasikan', async function () {
 Given('pengguna membuka form analisis situs', async function () {
   const page = await this.getPage();
   await page.goto(`${this.baseUrl}/form-gamblin-analysis`, { waitUntil: 'domcontentloaded' });
-  await page.getByPlaceholder('http://slot-xxx-00-xxxxx.xyz').waitFor({ timeout: 60000 });
-  // Input sudah terlihat dari HTML server sebelum React aktif (hydration). Mengetik
-  // sebelum itu tidak masuk ke state form, jadi tunggu sampai React memasang handler-nya.
+  await page.getByPlaceholder('https://contoh-situs.com').waitFor({ timeout: 30000 });
   await page.waitForFunction(() => {
-    const input = document.querySelector('input[placeholder="http://slot-xxx-00-xxxxx.xyz"]');
+    const input = document.querySelector('input[placeholder="https://contoh-situs.com"]');
     return !!input && Object.keys(input).some((key) => key.startsWith('__reactProps'));
-  }, null, { timeout: 60000 });
+  }, null, { timeout: 30000 });
 });
 
-Given('layanan deteksi sedang tidak dapat dihubungi', async function () {
+When('pengguna memasukkan URL {string} pada form', async function (url) {
   const page = await this.getPage();
-  await page.route('**/api/analyze', (route) => route.fulfill({
-    status: 503,
-    json: { success: false, message: 'Layanan deteksi tidak dapat dihubungi. Pastikan API deteksi berjalan.' },
-  }));
+  await page.getByPlaceholder('https://contoh-situs.com').fill(url);
 });
 
-When('pengguna menganalisis URL {string} melalui form', async function (url) {
+When('pengguna menekan tombol SCAN', async function () {
   const page = await this.getPage();
-  await page.getByPlaceholder('http://slot-xxx-00-xxxxx.xyz').fill(url);
   await page.getByRole('button', { name: 'SCAN' }).click();
-  // Tunggu sampai form selesai: pindah ke halaman hasil, atau tombol kembali ke "SCAN"
   await Promise.race([
-    page.waitForURL('**/form-gamblin-analysis/result?id=*', { timeout: 60000 }),
-    page.getByRole('button', { name: 'SCAN' }).waitFor({ timeout: 60000 }),
+    page.waitForURL('**/form-gamblin-analysis/result?id=*', { timeout: 30000 }),
+    page.getByRole('button', { name: 'SCAN' }).waitFor({ timeout: 30000 }),
   ]).catch(() => {});
 });
 
@@ -48,15 +39,14 @@ function savedLaporan(world) {
 
 Then('laporan yang tersimpan memiliki tingkat risiko {string}', async function (risiko) {
   const page = await this.getPage();
-  await page.waitForURL('**/form-gamblin-analysis/result?id=*', { timeout: 60000 });
+  await page.waitForURL('**/form-gamblin-analysis/result?id=*', { timeout: 30000 });
   assert.equal(savedLaporan(this).tingkat_risiko, risiko);
 });
 
-Then('laporan yang tersimpan memiliki bukti deteksi berindikasi {string}', function (indikasi) {
-  const bukti = savedLaporan(this).bukti_deteksi;
-  assert.ok(bukti, 'kolom bukti_deteksi kosong');
-  assert.equal(bukti.indikasi, indikasi);
-  assert.ok(bukti.modul.url_pattern.temuan.length > 0, 'temuan pola URL kosong');
+Then('laporan yang tersimpan memiliki analisis pola URL berindikasi {string}', function (indikasi) {
+  const pattern = savedLaporan(this).url_pattern_analysis;
+  assert.ok(pattern, 'kolom url_pattern_analysis kosong');
+  assert.ok(pattern.includes(indikasi), `expected "${pattern}" to include "${indikasi}"`);
 });
 
 Then('halaman hasil analisis menampilkan risiko {string}', async function (risiko) {
