@@ -269,6 +269,7 @@ def test_scan_real_browser_and_pipeline_detect_content_behind_neutral_url(tmp_pa
     finally:
         app.dependency_overrides.clear()
         server.shutdown()
+        scanner.close()
 
     body = response.json()
     assert response.status_code == 200, body

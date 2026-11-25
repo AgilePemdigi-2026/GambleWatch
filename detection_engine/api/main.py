@@ -34,6 +34,7 @@ import io
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
@@ -50,7 +51,15 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_PAGE_TEXT_CHARS = 200_000
 ALLOWED_IMAGE_FORMATS = {"PNG", "JPEG"}
 
-app = FastAPI(title="GambleWatch Detection API")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    # Saat layanan dimatikan: tutup Chromium milik /scan bila pernah dibuka
+    if _default_scanner.cache_info().currsize:
+        _default_scanner().close()
+
+
+app = FastAPI(title="GambleWatch Detection API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -141,6 +150,16 @@ class PageScanner:
 
     async def fetch(self, url: str) -> ScrapeOutcome:
         return await asyncio.wrap_future(self._executor.submit(self._fetch, url))
+
+    def _close(self) -> None:
+        if self._fetcher is not None:
+            self._fetcher.close()
+            self._fetcher = None
+
+    def close(self) -> None:
+        """Tutup Chromium di thread pemiliknya, lalu hentikan thread itu."""
+        self._executor.submit(self._close).result(timeout=30)
+        self._executor.shutdown(wait=True)
 
 
 @lru_cache(maxsize=1)

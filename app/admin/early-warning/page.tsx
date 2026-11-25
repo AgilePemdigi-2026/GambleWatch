@@ -15,14 +15,24 @@ import {
   Clock,
   RotateCw
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface AlertDomain {
   id: string;
   domain: string;
   percentage: string;
   desc: string;
-  icon: any;
+  icon: LucideIcon;
   badgeBg: string;
+}
+
+// Kolom tingkat_risiko berisi HIGH/MEDIUM/LOW (form + mesin deteksi) atau
+// HIGH RISK/MEDIUM RISK/LOW RISK (data lama); PENDING = belum dianalisis.
+function riskLevel(value: string | null | undefined): 'high' | 'medium' | 'low' {
+  const v = (value ?? '').trim().toUpperCase();
+  if (v === 'HIGH' || v === 'HIGH RISK') return 'high';
+  if (v === 'MEDIUM' || v === 'MEDIUM RISK' || v === 'PENDING') return 'medium';
+  return 'low';
 }
 
 interface PatternItem {
@@ -41,6 +51,7 @@ export default function EarlyWarningPage() {
   const [timeRange, setTimeRange] = useState<'thisMonth' | 'sixMonths'>('sixMonths');
   const [loading, setLoading] = useState(true);
 
+  // Bulan berjalan (0-11); diisi di browser setelah data dimuat agar HTML server dan browser sama
   const [currentMonthIndex, setCurrentMonthIndex] = useState(10);
 
   const [allAlerts, setAllAlerts] = useState<AlertDomain[]>([]);
@@ -53,8 +64,6 @@ export default function EarlyWarningPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    setCurrentMonthIndex(new Date().getMonth());
-
     async function fetchEWRData() {
       setLoading(true);
       try {
@@ -64,6 +73,7 @@ export default function EarlyWarningPage() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+        setCurrentMonthIndex(new Date().getMonth());
 
         if (records && records.length > 0) {
           const icons = [AlertTriangle, UserPlus, CreditCard, Clock];
@@ -71,18 +81,18 @@ export default function EarlyWarningPage() {
           const mappedCards = records.map((row, index) => ({
             id: row.id,
             domain: row.url_situs || row.domain || `domain-00${index + 1}.com`,
-            percentage: row.tingkat_risiko === 'HIGH RISK' ? '+42%' : '+18%',
+            percentage: riskLevel(row.tingkat_risiko) === 'high' ? '+42%' : '+18%',
             desc: row.catatan || row.alasan_indikasi || 'Pola transaksi / aktivitas tidak wajar terdeteksi.',
             icon: icons[index % icons.length],
-            badgeBg: row.tingkat_risiko === 'HIGH RISK' 
-              ? 'bg-rose-100 text-rose-700 border-rose-200' 
+            badgeBg: riskLevel(row.tingkat_risiko) === 'high'
+              ? 'bg-rose-100 text-rose-700 border-rose-200'
               : 'bg-amber-100 text-amber-800 border-amber-200',
           }));
           setAllAlerts(mappedCards);
 
           const mappedPatterns = records.map((row) => {
-            const isHigh = row.tingkat_risiko === 'HIGH RISK';
-            const isMedium = row.tingkat_risiko === 'MEDIUM RISK' || row.tingkat_risiko === 'PENDING';
+            const isHigh = riskLevel(row.tingkat_risiko) === 'high';
+            const isMedium = riskLevel(row.tingkat_risiko) === 'medium';
             
             return {
               id: row.id,
