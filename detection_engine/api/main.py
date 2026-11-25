@@ -180,6 +180,9 @@ def _check_api_key(provided: Optional[str]) -> None:
         raise HTTPException(401, "API key tidak valid.")
 
 
+ISP_BLOCKED_NOTE = ("Domain ini diblokir DNS provider (Internet Positif), "
+                    "jadi dibuka lewat DNS publik.")
+
 SCAN_MESSAGES = {
     "SUCCESS": "Halaman berhasil dibuka dan isinya dianalisis.",
     "BLOCKED": "Situs sudah diblokir (halaman Internet Positif/TrustPositif). Dinilai dari URL saja.",
@@ -207,7 +210,10 @@ def _scan_info(url: str, outcome: ScrapeOutcome, uploaded: bool) -> Dict[str, An
         "text_chars": 0, "links": 0, "load_ms": None,
         "screenshot_source": "unggahan" if uploaded else None,
         "screenshot_base64": None,
+        "isp_blocked": outcome.isp_blocked,
     }
+    if outcome.isp_blocked:
+        info["message"] = f"{ISP_BLOCKED_NOTE} {info['message']}"
     if capture is not None:
         info.update(
             final_url=capture.final_url, http_status=capture.http_status,

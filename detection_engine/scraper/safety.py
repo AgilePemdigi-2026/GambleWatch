@@ -8,9 +8,12 @@ ulang untuk setiap request di dalam browser (redirect, gambar, skrip), lihat fet
 """
 
 import ipaddress
+import json
 import socket
+from dataclasses import dataclass
 from typing import Callable, Iterable, List, Optional, Tuple
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 ALLOWED_SCHEMES = ("http", "https")
 ALLOWED_PORTS = (None, 80, 443, 8080, 8443)
@@ -110,3 +113,82 @@ def check_url(url: str, resolver: Optional[Resolver] = None,
     clean = normalize_url(url)
     host = urlsplit(clean).hostname or ""
     return clean, check_host(host, resolver=resolver, allow_private=allow_private)
+
+
+# --- DNS publik (DoH): lewati blokir DNS provider ---------------------------------------
+#
+# Provider di Indonesia (Internet Positif/Kominfo) memblokir situs judi lewat DNS: domain
+# dialihkan ke halaman blokir atau dijawab "tidak ada". Browser pengguna yang memakai Secure
+# DNS tetap bisa membuka situsnya, jadi scanner juga harus bisa melihat isi aslinya.
+# Alamat dicari lewat DNS-over-HTTPS publik; bila jawabannya berbeda total dengan DNS
+# sistem, Chromium diarahkan ke alamat publik itu (lihat fetcher.py) dan alamat tersebut
+# diperiksa is_public_address seperti biasa.
+
+DOH_ENDPOINTS = ("https://cloudflare-dns.com/dns-query", "https://dns.google/resolve")
+DOH_TIMEOUT = 5.0
+# Tanda jawaban DNS sistem adalah pengalihan blokir (nama kanonis hasil CNAME/RPZ provider)
+BLOCK_MARKERS = ("positif", "rpz", "nawala", "blokir")
+
+
+def system_lookup(host: str) -> Tuple[List[str], str]:
+    """DNS sistem: (alamat, nama kanonis). Nama kanonis memperlihatkan pengalihan blokir."""
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP, flags=socket.AI_CANONNAME)
+    except socket.gaierror as exc:
+        raise DnsFailure(f"{host}: {exc}") from exc
+    canon = next((str(info[3]) for info in infos if info[3]), "")
+    return sorted({str(info[4][0]) for info in infos}), canon
+
+
+def doh_resolver(host: str, endpoints: Iterable[str] = DOH_ENDPOINTS,
+                 timeout: float = DOH_TIMEOUT) -> List[str]:
+    """Record A lewat DNS-over-HTTPS (format JSON). Endpoint berikutnya dicoba bila gagal."""
+    last = "DNS publik tidak dapat dihubungi"
+    for endpoint in endpoints:
+        url = f"{endpoint}?{urlencode({'name': host, 'type': 'A'})}"
+        try:
+            with urlopen(Request(url, headers={"accept": "application/dns-json"}),
+                         timeout=timeout) as response:
+                data = json.load(response)
+        except (OSError, ValueError) as exc:
+            last = str(exc)
+            continue
+        if data.get("Status") == 3:
+            raise DnsFailure(f"{host}: domain tidak ditemukan (DNS publik)")
+        addresses = sorted({str(answer["data"]) for answer in data.get("Answer") or []
+                            if answer.get("type") == 1 and answer.get("data")})
+        if addresses:
+            return addresses
+        last = "tidak ada record A"
+    raise DnsFailure(f"{host}: {last}")
+
+
+@dataclass
+class DnsDetour:
+    addresses: List[str]   # alamat dari DNS publik yang dipakai Chromium
+    isp_blocked: bool      # DNS sistem jelas mengalihkan/menolak domain ini
+
+
+def find_dns_detour(host: str,
+                    system: Callable[[str], Tuple[List[str], str]] = system_lookup,
+                    public: Resolver = doh_resolver) -> Optional[DnsDetour]:
+    """None bila DNS sistem dan DNS publik sepakat (atau DNS publik tidak tersedia)."""
+    host = host.strip("[]").rstrip(".").lower()
+    try:
+        ipaddress.ip_address(host.split("%", 1)[0])
+        return None
+    except ValueError:
+        pass
+    try:
+        system_addresses, canon = system(host)
+        system_failed = False
+    except DnsFailure:
+        system_addresses, canon, system_failed = [], "", True
+    try:
+        public_addresses = list(public(host))
+    except DnsFailure:
+        return None
+    if not public_addresses or set(system_addresses) & set(public_addresses):
+        return None
+    blocked = system_failed or any(marker in canon.lower() for marker in BLOCK_MARKERS)
+    return DnsDetour(addresses=public_addresses, isp_blocked=blocked)

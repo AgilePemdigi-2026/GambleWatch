@@ -7,12 +7,16 @@ Pengaturan mengikuti docs/RANCANGAN_SCRAPER.md §5.1:
       alamat non-publik dibatalkan (pencegahan SSRF, lihat safety.py)
     * teks dipotong 200.000 karakter (sama dengan batas API /analyze), screenshot ≤ 5 MB
 
+    * domain yang diblokir DNS provider (Internet Positif) dibuka lewat DNS publik (DoH),
+      seperti browser pengguna yang memakai Secure DNS; matikan dengan GAMBLEWATCH_PUBLIC_DNS=0
+
 Keterbatasan yang diketahui: pemeriksaan alamat dan koneksi Chromium me-resolve DNS
 secara terpisah, sehingga serangan DNS rebinding yang sangat cepat secara teori masih bisa
 lolos. Jalankan worker di container/jaringan yang tidak bisa menjangkau layanan internal.
 """
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -20,7 +24,8 @@ from urllib.parse import urlsplit
 
 from detection_engine.scraper.classify import classify_error, classify_page
 from detection_engine.scraper.safety import (
-    DnsFailure, Resolver, UnsafeTarget, check_host, check_url,
+    DnsDetour, DnsFailure, Resolver, UnsafeTarget, check_host, check_url, doh_resolver,
+    find_dns_detour, is_public_address, normalize_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +73,10 @@ class FetchConfig:
     headless: bool = True
     allow_private: bool = False       # HANYA untuk tes dengan server lokal
     resolver: Optional[Resolver] = None
+    # Lewati blokir DNS provider dengan DNS publik (DoH). Tidak dipakai bila resolver
+    # diganti (tes) atau allow_private aktif.
+    public_dns: bool = field(
+        default_factory=lambda: os.getenv("GAMBLEWATCH_PUBLIC_DNS", "1").strip() != "0")
 
 
 @dataclass
@@ -93,6 +102,7 @@ class ScrapeOutcome:
     failure_code: Optional[str] = None
     failure_message: Optional[str] = None
     capture: Optional[PageCapture] = None
+    isp_blocked: bool = False         # domain diblokir DNS provider, dibuka lewat DNS publik
 
     @property
     def ok(self) -> bool:
@@ -154,10 +164,13 @@ class PageFetcher:
                 return True   # biarkan Chromium sendiri yang gagal me-resolve
         return self._host_cache[host]
 
-    def _guard(self, route) -> None:
+    def _guard(self, route, mapped: Optional[Dict[str, List[str]]] = None) -> None:
         request = route.request
         parts = urlsplit(request.url)
-        if parts.scheme in ("http", "https") and not self._host_allowed(parts.hostname or ""):
+        host = (parts.hostname or "").lower()
+        # Host yang diarahkan ke alamat DNS publik sudah diperiksa saat rencana fetch dibuat
+        allowed = host in mapped if mapped and host in mapped else self._host_allowed(host)
+        if parts.scheme in ("http", "https") and not allowed:
             logger.warning("Request diblokir (alamat non-publik): %s", request.url[:200])
             route.abort("blockedbyclient")
             return
@@ -168,26 +181,78 @@ class PageFetcher:
 
     # --- utama ---
 
+    def _dns_detour(self, host: str) -> Optional[DnsDetour]:
+        cfg = self.config
+        if not cfg.public_dns or cfg.resolver is not None or cfg.allow_private:
+            return None
+        try:
+            return find_dns_detour(host)
+        except Exception:   # DNS publik hanya cadangan; jangan gagalkan scraping karenanya
+            logger.warning("Pemeriksaan DNS publik gagal untuk %s", host, exc_info=True)
+            return None
+
+    def _mapped_hosts(self, host: str, detour: DnsDetour) -> Dict[str, List[str]]:
+        """host -> alamat DNS publik, termasuk varian www/tanpa-www (redirect paling umum)."""
+        mapped = {host: detour.addresses}
+        variant = host[4:] if host.startswith("www.") else f"www.{host}"
+        try:
+            addresses = doh_resolver(variant)
+        except DnsFailure:
+            addresses = []
+        if addresses and all(is_public_address(a) for a in addresses):
+            mapped[variant] = addresses
+        return mapped
+
     def fetch(self, url: str, profile: str = "desktop") -> ScrapeOutcome:
+        system_failure: Optional[DnsFailure] = None
         try:
             clean_url, _ = check_url(url, resolver=self.config.resolver,
                                      allow_private=self.config.allow_private)
         except UnsafeTarget as exc:
             return _failed("UNSAFE_TARGET", str(exc))
         except DnsFailure as exc:
-            return _failed("DNS", str(exc))
+            clean_url, system_failure = normalize_url(url), exc
 
+        host = (urlsplit(clean_url).hostname or "").lower()
+        detour = self._dns_detour(host)
+        if detour is None:
+            if system_failure is not None:
+                return _failed("DNS", str(system_failure))
+            self.start()
+            assert self._browser is not None
+            return self._open(self._browser, clean_url, profile, None)
+
+        # Domain diblokir/dialihkan DNS provider: buka lewat alamat dari DNS publik
+        try:
+            check_host(host, resolver=lambda _host: detour.addresses)
+        except UnsafeTarget as exc:
+            return _failed("UNSAFE_TARGET", str(exc))
+        mapped = self._mapped_hosts(host, detour)
+        rules = ", ".join(f"MAP {name} {addresses[0]}" for name, addresses in mapped.items())
+        logger.info("DNS sistem berbeda dengan DNS publik untuk %s; dibuka lewat %s",
+                    host, detour.addresses[0])
         self.start()
-        assert self._browser is not None
+        assert self._playwright is not None
+        browser = self._playwright.chromium.launch(
+            headless=self.config.headless, args=[f"--host-resolver-rules={rules}"])
+        try:
+            outcome = self._open(browser, clean_url, profile, mapped)
+        finally:
+            browser.close()
+        outcome.isp_blocked = detour.isp_blocked
+        return outcome
+
+    def _open(self, browser, clean_url: str, profile: str,
+              mapped: Optional[Dict[str, List[str]]]) -> ScrapeOutcome:
         cfg = self.config
         options: Dict[str, Any] = {"viewport": cfg.viewport, "user_agent": cfg.user_agent}
         options.update(PROFILES.get(profile, {}))
-        context = self._browser.new_context(
+        context = browser.new_context(
             **options, locale="id-ID", timezone_id="Asia/Jakarta",
             accept_downloads=False, service_workers="block",
         )
         try:
-            context.route("**/*", self._guard)
+            context.route("**/*", lambda route: self._guard(route, mapped))
             page = context.new_page()
             page.on("popup", lambda popup: popup.close())
             page.set_default_timeout(cfg.nav_timeout_ms)
