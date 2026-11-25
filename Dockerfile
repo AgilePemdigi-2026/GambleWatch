@@ -16,8 +16,11 @@ COPY . .
 # Nilai NEXT_PUBLIC_ dimasukkan ke kode browser saat build (diisi dari Environment Variables Coolify)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Alamat Kong di jaringan Docker; dipakai next.config.ts untuk meneruskan /supabase/... (opsional)
+ARG SUPABASE_INTERNAL_URL
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    SUPABASE_INTERNAL_URL=$SUPABASE_INTERNAL_URL \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build && npm prune --omit=dev
 
