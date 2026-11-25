@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicHeader from '@/components/PublicHeader';
 import PublicFooter from '@/components/PublicFooter';
-import { createClient } from '@/lib/supabase/client';
+import { validateReportUrl } from '@/lib/detection/url';
 import { Upload, Search, RotateCw } from 'lucide-react';
 
 export default function GamblingAnalysisFormPage() {
@@ -14,12 +14,15 @@ export default function GamblingAnalysisFormPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const supabase = createClient();
-
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim() && !file) {
       setErrorMessage('Masukkan URL atau unggah tangkapan layar terlebih dahulu.');
+      return;
+    }
+    const urlError = validateReportUrl(url);
+    if (urlError) {
+      setErrorMessage(urlError);
       return;
     }
 
@@ -27,53 +30,20 @@ export default function GamblingAnalysisFormPage() {
     setLoading(true);
 
     try {
-      let publicImageUrl = null;
-
-      if (file) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('bukti-analisis')
-          .upload(fileName, file);
-
-        if (!uploadErr) {
-          const { data: publicUrlData } = supabase.storage
-            .from('bukti-analisis')
-            .getPublicUrl(fileName);
-          publicImageUrl = publicUrlData.publicUrl;
-        }
+      // Server menjalankan mesin deteksi (membuka link + DET-01..04), mengunggah bukti, dan
+      // menyimpan laporan; browser hanya menerima id-nya. Lihat app/api/analyze/route.ts.
+      const body = new FormData();
+      if (url.trim()) body.set('url', url.trim());
+      if (file) body.set('screenshot', file);
+      const response = await fetch('/api/analyze', { method: 'POST', body });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success || !result.id) {
+        setErrorMessage(result?.message ?? 'Gagal melakukan analisis. Silakan coba beberapa saat lagi.');
+        return;
       }
 
-      const isHighRisk = url.toLowerCase().includes('slot') || 
-                         url.toLowerCase().includes('gacor') || 
-                         url.toLowerCase().includes('judi') || 
-                         url.toLowerCase().includes('bet');
-                         
-      const riskLevel = isHighRisk ? 'HIGH RISK' : 'LOW RISK';
-      const scoreProb = isHighRisk ? 95 : 10;
-      const keywords = isHighRisk ? 'slot, gacor, judi' : '-';
-      const patternDesc = isHighRisk 
-        ? `High Risk (${scoreProb}%): Gambling keyword in domain detected` 
-        : 'Low Risk: Domain disinyalir aman';
-
-      const { data: insertedData, error: dbErr } = await supabase
-        .from('laporan_analisis')
-        .insert({
-          url_situs: url.trim() || 'Hanya Unggahan Gambar',
-          bukti_screenshot: publicImageUrl,
-          tingkat_risiko: riskLevel,
-          skor_probabilitas: scoreProb,
-          keywords_found: keywords,
-          url_pattern_analysis: patternDesc,
-          status: 'DRAFT',
-        })
-        .select('id')
-        .single();
-
-      if (dbErr) throw dbErr;
-
-      router.push(`/form-gamblin-analysis/result?id=${insertedData.id}`);
-    } catch (err: any) {
+      router.push(`/form-gamblin-analysis/result?id=${result.id}`);
+    } catch (err) {
       console.error('Error scanning:', err);
       setErrorMessage('Gagal melakukan analisis. Silakan coba beberapa saat lagi.');
     } finally {
@@ -103,13 +73,16 @@ export default function GamblingAnalysisFormPage() {
               </label>
               <input
                 type="text"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
                 placeholder="https://contoh-situs.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full px-5 py-3.5 bg-white border border-[#E2D7C7] rounded-full text-xs text-[#2C1810] focus:outline-none focus:border-stone-400 font-medium shadow-2xs text-center"
               />
               <p className="text-[10px] text-stone-400 text-center mt-2">
-                ⓘ Proses pemindaian URL membutuhkan waktu 10-30 detik.
+                ⓘ Masukkan link lengkap diawali https:// (contoh: https://contoh-situs.com). Sistem akan membuka link dan memeriksa isinya; proses membutuhkan waktu 10-30 detik.
               </p>
             </div>
 

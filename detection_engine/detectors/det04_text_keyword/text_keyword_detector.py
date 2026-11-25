@@ -181,11 +181,21 @@ class TextKeywordDetector:
     # match "alphabet"); longer terms may appear inside compound words
     # ("togelonline", "slotgacor").
     WHOLE_WORD_MAX_LENGTH = 4
+    # Longer terms that are the stem of everyday words, so they must also match as
+    # whole words: "bandar" is inside "bandara" (airport). Gambling compounds such as
+    # "bandartogel" are covered by their own keywords/variations.
+    WHOLE_WORD_TERMS = frozenset({"bandar"})
     # Shorter terms produce too many false fuzzy matches: every 6-letter
     # keyword has everyday words one letter away ("sabung" ~ "sabun",
     # "sambung"; "kasino" ~ "kasih"). Disguised short keywords are still
     # caught exactly after leetspeak normalisation ("k4sino" -> "kasino").
     MIN_FUZZY_LENGTH = 7
+    # Everyday words that are one letter away from a 7+ letter keyword and so would
+    # pass the fuzzy check. Found by scanning real pages: Traveloka lists airports
+    # ("bandara") and was flagged High as "bandarq".
+    FUZZY_COMMON_WORDS = frozenset({
+        "bandara", "bandaranya", "bandarnya",
+    })
     # Keywords at or above this weight get the repetition bonus
     STRONG_KEYWORD_WEIGHT = 0.6
 
@@ -195,7 +205,7 @@ class TextKeywordDetector:
         pattern = cache.get(term)
         if pattern is None:
             body = re.escape(term.lower())
-            if len(term) <= self.WHOLE_WORD_MAX_LENGTH:
+            if len(term) <= self.WHOLE_WORD_MAX_LENGTH or term.lower() in self.WHOLE_WORD_TERMS:
                 body = rf'(?<![a-z]){body}(?![a-z])'
             pattern = cache[term] = re.compile(body)
         return pattern
@@ -223,7 +233,7 @@ class TextKeywordDetector:
         """
         matches = []
         by_length: Dict[int, List[str]] = {}
-        for word in set(re.findall(r'[a-z]{4,}', text)) - (exclude or set()):
+        for word in set(re.findall(r'[a-z]{4,}', text)) - (exclude or set()) - self.FUZZY_COMMON_WORDS:
             by_length.setdefault(len(word), []).append(word)
 
         try:
@@ -299,6 +309,8 @@ class TextKeywordDetector:
         'dampak', 'kecanduan', 'korban', 'pidana', 'undang-undang', 'uu ite', 'hukuman',
         'penelitian', 'pemerintah', 'kementerian', 'menteri', 'presiden', 'dpr', 'pasal',
         'penyidikan',
+        # encyclopedia / law / religion pages about gambling (e.g. Wikipedia "Perjudian")
+        'ensiklopedia', 'sejarah', 'ilegal', 'kuhp', 'dilarang', 'larangan', 'haram', 'fatwa',
     )  # "rekening" is left out: gambling pages talk about bank accounts too
     # Damping factors. Both keep even a near-perfect keyword score (< 1.0)
     # below the "Keywords Found" threshold (min_score = 0.3): 0.25 * 1.0 and

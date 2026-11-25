@@ -2,8 +2,8 @@
 //
 // Menjalankan:   npm run test:bdd
 // Prasyarat:     web Next.js di http://localhost:3000 (npm run dev) dan, untuk modul DET,
-//                API deteksi di http://127.0.0.1:8000
-//                (python -m uvicorn detection_engine.api.main:app --port 8000).
+//                API deteksi di http://127.0.0.1:8001
+//                (python -m uvicorn detection_engine.api.main:app --port 8001).
 // Variabel opsional: BASE_URL, DETECTION_API_URL, HEADED=1 (tampilkan browser).
 //
 // Halaman admin diuji dengan respons Supabase yang DISIMULASIKAN (page.route), sehingga
@@ -15,7 +15,7 @@ const {
 const { chromium } = require('playwright');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const API_URL = process.env.DETECTION_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.DETECTION_API_URL || 'http://127.0.0.1:8001';
 
 setDefaultTimeout(90 * 1000);
 
@@ -186,4 +186,27 @@ ThenStep('tidak ada data yang ditulis ke Supabase', function () {
   if (this.writes.length) throw new Error(`Ada penulisan: ${JSON.stringify(this.writes)}`);
 });
 
-module.exports = { buildLaporan, mockSupabaseTable, relativeTime, expectText, pageText };
+// Laporan disimpan di SERVER oleh route /api/analyze, jadi simulasi Supabase di browser tidak
+// bisa mencegatnya. Permintaan form ke /api/analyze diteruskan dengan header dry-run: route
+// menjalankan mesin deteksi asli tetapi tidak menulis ke Supabase, lalu mengembalikan baris yang
+// AKAN disimpan. Baris itu dicatat di world.writes (table "laporan_analisis (server)") dan
+// dimasukkan ke `rows` agar halaman hasil bisa membacanya lewat mockSupabaseTable.
+async function simulateLaporanServer(world, rows) {
+  const page = await world.getPage();
+  await page.route('**/api/analyze', async (route) => {
+    const request = route.request();
+    const response = await route.fetch({
+      headers: { ...request.headers(), 'x-gamblewatch-dry-run': '1' },
+      timeout: 110 * 1000,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (body.success && body.laporan) {
+      const row = { ...body.laporan, id: body.id };
+      rows.push(row);
+      world.writes.push({ table: 'laporan_analisis (server)', method: 'POST', body: row });
+    }
+    return route.fulfill({ response, json: body });
+  });
+}
+
+module.exports = { buildLaporan, mockSupabaseTable, simulateLaporanServer, relativeTime, expectText, pageText };

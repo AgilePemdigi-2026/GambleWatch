@@ -263,12 +263,12 @@ def test_sample_normal_pages_are_not_flagged(detector):
 
 
 @needs_samples
-@pytest.mark.xfail(strict=False, reason=(
-    "Celah terukur (contoh 29/10/2026): 5 dari 6 benar. Sisanya id.wikipedia.org/wiki/Perjudian, "
-    "artikel ensiklopedis yang menguraikan semua jenis judi (judi, taruhan, togel, kasino, "
-    "poker, domino) dengan hanya 2 kata informasi, sehingga tidak terbaca 'informasional'."))
 def test_sample_pages_that_only_discuss_gambling_are_not_flagged(detector):
-    """Berita dan edukasi tentang judi online bukan situs judi."""
+    """Berita dan edukasi tentang judi online bukan situs judi.
+
+    Termasuk id.wikipedia.org/wiki/Perjudian (dulu xfail): artikel ensiklopedis kini terbaca
+    informasional lewat kata seperti "ensiklopedia" dan "sejarah".
+    """
     pages = entries("mirip_tapi_bukan")
     flagged = [p["url"] for p in pages if detector.detect(text_of(p)).label == "Keywords Found"]
     assert pages and not flagged, f"salah ditandai: {flagged}"
@@ -318,3 +318,18 @@ def main(argv) -> int:
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
+
+# --- Kata umum yang mirip kata kunci (ditemukan lewat evaluasi pemindaian link) ---
+
+def test_airport_text_is_not_gambling(detector):
+    # Traveloka sempat dinilai Tinggi: "bandara" dibaca sebagai "bandar" dan "bandarq"
+    text = ("Tiket pesawat murah ke Bandara Soekarno-Hatta, hotel dekat bandara Ngurah Rai, "
+            "jadwal penerbangan dari bandara Juanda hari ini.")
+    result = detector.detect(text)
+    assert result.score == 0.0, result.evidence
+
+
+def test_real_bandar_terms_still_detected(detector):
+    found = detector.detect("Main bandarq online, daftar di bandar togel resmi.").evidence["keywords_found"]
+    assert {"bandarq", "bandar togel"} <= {k["keyword"] for k in found}
