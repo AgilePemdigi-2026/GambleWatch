@@ -46,6 +46,9 @@ from pydantic import ValidationError
 from detection_engine.models.detection_models import DetectionInput
 from detection_engine.pipeline import DetectionPipeline
 from detection_engine.scraper.fetcher import FetchConfig, PageFetcher, ScrapeOutcome
+from detection_engine.scraper.variants import (
+    CLOAKING_MESSAGE, RETRY_PROFILES, is_cloaking, should_retry,
+)
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_PAGE_TEXT_CHARS = 200_000
@@ -244,9 +247,7 @@ async def scan(
     #    Halaman yang MEMBAHAS judi (berita, ensiklopedia) sudah dinilai dari isinya dan
     #    tidak dicoba ulang: versi HP-nya sering lebih pendek sehingga konteksnya hilang.
     best_outcome, best_summary, best_profile = outcome, summary, "desktop"
-    mentions_gambling = any(
-        summary["modules"].get(key, {}).get("findings") for key in ("keyword_analysis", "ocr"))
-    if outcome.ok and summary["overall_risk"] == "low" and not mentions_gambling:
+    if should_retry(outcome.ok, summary):
         for profile in RETRY_PROFILES:
             alt_outcome, alt_summary = await _assess(url, profile, image, scanner, pipeline)
             variants.append({"profile": profile, "status": alt_outcome.status,
@@ -258,19 +259,12 @@ async def scan(
     info["profile"] = best_profile
     info["variants"] = variants
     search = next((v for v in variants if v["profile"] == "search"), None)
-    info["cloaking"] = bool(
-        search and search["score"] is not None
-        and search["score"] - summary["overall_score"] >= CLOAKING_GAP
-        and best_summary["overall_risk"] != "low")
+    info["cloaking"] = is_cloaking(summary["overall_score"], search["score"] if search else None,
+                                   best_summary["overall_risk"])
     if info["cloaking"]:
-        info["message"] = ("Situs menampilkan konten judi hanya kepada pengunjung dari mesin pencari "
-                           "(cloaking). Ini tanda kuat situs telah diretas.")
+        info["message"] = CLOAKING_MESSAGE
     best_summary["scan"] = info
     return best_summary
-
-
-RETRY_PROFILES = ("search", "mobile")
-CLOAKING_GAP = 0.3   # selisih skor tampilan "dari Google" vs biasa yang dianggap cloaking
 
 
 async def _assess(url: str, profile: str, image: Optional[bytes],
