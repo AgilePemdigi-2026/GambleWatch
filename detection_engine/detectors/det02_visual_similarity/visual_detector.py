@@ -10,7 +10,7 @@ import numpy as np
 
 from detection_engine.config.detection_config import config
 from detection_engine.detectors.det02_visual_similarity.reference_index import (
-    HASH_AVAILABLE, ClipEmbedder, ReferenceIndex, compute_phash_bits,
+    HASH_AVAILABLE, ClipEmbedder, ReferenceIndex, compute_phash_bits, is_low_information,
 )
 from detection_engine.models.detection_models import (
     DetectionResult, DetectionStatus, DetectorError, DetectorType,
@@ -64,6 +64,15 @@ class VisualSimilarityDetector:
             pil_image = self._load_image(image)
         except Exception as e:
             return self._failed("INVALID_IMAGE", str(e), start)
+
+        if is_low_information(pil_image):
+            # Halaman kosong/polos punya pHash yang sama dengan halaman kosong lain
+            pil_image.close()
+            return DetectionResult(
+                detector=DetectorType.VISUAL_SIMILARITY, status=DetectionStatus.OK,
+                label="No Visual Match", score=0.0,
+                evidence={"reason": "Gambar hampir polos, tidak dibandingkan", "similarity": 0.0},
+                duration_ms=int((time.time() - start) * 1000))
 
         try:
             with pil_image:

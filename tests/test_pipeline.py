@@ -160,3 +160,29 @@ def test_hung_detector_times_out_without_blocking_others(monkeypatch):
     assert text.status == DetectionStatus.FAILED and text.label == "Timeout"
     url = outcome.get_detector_result(DetectorType.URL_PATTERN)
     assert url.status == DetectionStatus.OK and url.label == "High Risk Pattern"
+
+
+# --- Gabungan skor: sinyal URL lemah mengikuti konteks isi halaman (dari evaluasi pemindaian link) ---
+
+def _summary_for(url, text):
+    from detection_engine.models.detection_models import DetectionInput
+    pipeline = DetectionPipeline()
+    return pipeline.get_summary(pipeline.run_all(DetectionInput(url=url, scraped={"page_text": text})))
+
+
+def test_news_article_about_gambling_is_not_flagged_by_its_url():
+    text = ("OJK dan DPR mengadakan edukasi literasi keuangan tentang bahaya dan dampak judi online. "
+            "Pemerintah terus melakukan pemblokiran situs judi online, kata menteri.")
+    summary = _summary_for("https://berita.example/edukasi-bahaya-judi-online", text)
+    assert summary["indication"] == "Rendah", summary["overall_score"]
+
+
+def test_weak_word_in_domain_and_text_counts_once():
+    summary = _summary_for("https://www.bola.example", "Berita bola terkini, jadwal liga dan hasil pertandingan bola.")
+    assert summary["indication"] == "Rendah", summary["overall_score"]
+
+
+def test_strong_url_still_counts_on_a_news_like_page():
+    text = "OJK dan pemerintah mengimbau masyarakat waspada bahaya dan dampak judi, kata menteri."
+    summary = _summary_for("https://zeus123.xyz/daftar", text)
+    assert summary["indication"] in ("Sedang", "Tinggi"), summary["overall_score"]

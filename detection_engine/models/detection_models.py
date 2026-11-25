@@ -28,6 +28,9 @@ class DetectionInput(BaseModel):
     """
     url: Optional[HttpUrl] = None
     screenshot: Optional[Union[bytes, str]] = None  # bytes or file path
+    # Screenshot halaman yang lebih panjang (hasil scroll) khusus untuk OCR. DET-02 tetap memakai
+    # `screenshot` (layar pertama) karena referensinya juga layar pertama.
+    ocr_screenshot: Optional[bytes] = None
     scraped: Optional[Dict[str, Any]] = Field(default_factory=lambda: {
         "page_text": "",
         "title": "",
@@ -51,6 +54,13 @@ class DetectionInput(BaseModel):
             pass
         else:
             raise ValueError("screenshot must be bytes or file path")
+        return v
+
+    @field_validator('ocr_screenshot', mode='before')
+    @classmethod
+    def validate_ocr_screenshot(cls, v):
+        if v is not None and (not isinstance(v, bytes) or len(v) > 5 * 1024 * 1024):
+            raise ValueError("ocr_screenshot must be image bytes up to 5 MB")
         return v
 
     @field_validator('url', mode='before')

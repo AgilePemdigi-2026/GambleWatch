@@ -1,5 +1,7 @@
 // Step DET: memanggil mesin deteksi sungguhan.
-// - "lewat form GambleWatch": route Next.js POST /api/analyze (yang dipakai form)
+// - "pola URL ... dinilai mesin deteksi": API DET-06 POST /analyze langsung (URL tidak dibuka,
+//   sehingga hasilnya tetap sama tanpa internet). Pemindaian isi link diuji di anl_integrasi.
+// - "form GambleWatch mengirim ...": route Next.js POST /api/analyze (yang dipakai form)
 // - "mesin deteksi" dengan teks: API DET-06 POST /analyze langsung (form belum mengirim teks)
 const assert = require('node:assert/strict');
 const { Given, When, Then } = require('@cucumber/cucumber');
@@ -13,15 +15,21 @@ async function postForm(url, form) {
 Given('layanan deteksi GambleWatch aktif', async function () {
   const health = await fetch(`${this.apiUrl}/health`).catch(() => null);
   assert.ok(health && health.ok,
-    `API deteksi tidak aktif di ${this.apiUrl}. Jalankan: python -m uvicorn detection_engine.api.main:app --port 8000`);
+    `API deteksi tidak aktif di ${this.apiUrl}. Jalankan: python -m uvicorn detection_engine.api.main:app --port 8001`);
 });
 
-When('URL {string} dianalisis lewat form GambleWatch', async function (url) {
+When('pola URL {string} dinilai mesin deteksi', async function (url) {
+  const form = new FormData();
+  form.set('url', url);
+  this.result = await postForm(`${this.apiUrl}/analyze`, form);
+  assert.equal(this.result.status, 200, JSON.stringify(this.result.body));
+  this.summary = this.result.body;
+});
+
+When('form GambleWatch mengirim link {string}', async function (url) {
   const form = new FormData();
   form.set('url', url);
   this.result = await postForm(`${this.baseUrl}/api/analyze`, form);
-  assert.equal(this.result.status, 200, JSON.stringify(this.result.body));
-  this.summary = this.result.body.summary;
 });
 
 When('teks halaman {string} dianalisis mesin deteksi', async function (text) {
