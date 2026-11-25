@@ -1,10 +1,12 @@
 const { Given, When, Then } = require('@cucumber/cucumber');
 const { expect } = require('@playwright/test');
-const { mockSupabaseTable } = require('./support_playwright');
+const { mockSupabaseTable, simulateLaporanServer } = require('./support_playwright');
 
 Given('Pengguna membuka halaman analisis {string}', async function (urlPath) {
   this.laporan = [];
   await mockSupabaseTable(this, 'laporan_analisis', this.laporan);
+  // Laporan disimpan server: jalankan route dalam mode uji agar tidak menulis ke Supabase asli
+  await simulateLaporanServer(this, this.laporan);
   await this.page.goto(`http://localhost:3000${urlPath}`, { waitUntil: 'domcontentloaded' });
 });
 

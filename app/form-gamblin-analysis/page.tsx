@@ -4,19 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicHeader from '@/components/PublicHeader';
 import PublicFooter from '@/components/PublicFooter';
-import { createClient } from '@/lib/supabase/client';
-import { toLaporanFields, type DetectionSummary } from '@/lib/detection/analysis';
 import { validateReportUrl } from '@/lib/detection/url';
 import { Upload, Search, RotateCw } from 'lucide-react';
-
-// Screenshot halaman dari hasil pemindaian link (base64) -> berkas untuk Supabase Storage
-function screenshotFromScan(summary: DetectionSummary): File | null {
-  const data = summary.scan?.screenshot_base64;
-  if (!data || summary.scan?.screenshot_source !== 'halaman') return null;
-  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
-  return new File([bytes], `halaman.${isPng ? 'png' : 'jpg'}`, { type: isPng ? 'image/png' : 'image/jpeg' });
-}
 
 export default function GamblingAnalysisFormPage() {
   const router = useRouter();
@@ -24,8 +13,6 @@ export default function GamblingAnalysisFormPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-
-  const supabase = createClient();
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,52 +30,19 @@ export default function GamblingAnalysisFormPage() {
     setLoading(true);
 
     try {
-      // 1. Mesin deteksi: bila ada URL, layanan membuka link-nya lalu menilai URL,
-      //    isi teks halaman, dan screenshot halaman (DET-01..04). Lihat app/api/analyze.
+      // Server menjalankan mesin deteksi (membuka link + DET-01..04), mengunggah bukti, dan
+      // menyimpan laporan; browser hanya menerima id-nya. Lihat app/api/analyze/route.ts.
       const body = new FormData();
       if (url.trim()) body.set('url', url.trim());
       if (file) body.set('screenshot', file);
       const response = await fetch('/api/analyze', { method: 'POST', body });
       const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
+      if (!response.ok || !result?.success || !result.id) {
         setErrorMessage(result?.message ?? 'Gagal melakukan analisis. Silakan coba beberapa saat lagi.');
         return;
       }
-      const summary = result.summary as DetectionSummary;
 
-      // 2. Bukti gambar: unggahan pengguna, atau screenshot halaman yang dipindai
-      let publicImageUrl: string | null = null;
-      const evidence = file ?? screenshotFromScan(summary);
-      if (evidence) {
-        const fileExt = evidence.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('bukti-analisis')
-          .upload(fileName, evidence);
-
-        if (!uploadErr) {
-          const { data: publicUrlData } = supabase.storage
-            .from('bukti-analisis')
-            .getPublicUrl(fileName);
-          publicImageUrl = publicUrlData.publicUrl;
-        }
-      }
-
-      // 3. Simpan laporan dengan hasil deteksi asli (risiko, skor, temuan, bukti_deteksi)
-      const { data: insertedData, error: dbErr } = await supabase
-        .from('laporan_analisis')
-        .insert({
-          url_situs: url.trim() || 'Hanya Unggahan Gambar',
-          bukti_screenshot: publicImageUrl,
-          status: 'DRAFT',
-          ...toLaporanFields(summary),
-        })
-        .select('id')
-        .single();
-
-      if (dbErr) throw dbErr;
-
-      router.push(`/form-gamblin-analysis/result?id=${insertedData.id}`);
+      router.push(`/form-gamblin-analysis/result?id=${result.id}`);
     } catch (err) {
       console.error('Error scanning:', err);
       setErrorMessage('Gagal melakukan analisis. Silakan coba beberapa saat lagi.');

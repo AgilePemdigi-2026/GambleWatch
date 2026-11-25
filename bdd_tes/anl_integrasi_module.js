@@ -1,10 +1,10 @@
-// Step ANL + DET-06: form /form-gamblin-analysis -> /api/analyze -> API deteksi POST /scan
-// (membuka link, menilai URL + isi halaman + screenshot), lalu menyimpan ke laporan_analisis.
-// Penyimpanan Supabase (tabel dan Storage) disimulasikan; mesin deteksi asli dipakai kecuali
-// pada skenario yang menyimulasikan respons /api/analyze.
+// Step ANL + DET-06: form /form-gamblin-analysis -> /api/analyze (server) -> API deteksi POST /scan
+// (membuka link, menilai URL + isi halaman + screenshot). SERVER yang menyimpan laporan; di tes,
+// route dijalankan dalam mode dry-run (lihat simulateLaporanServer) sehingga mesin deteksi asli
+// dipakai tanpa menulis ke database tim. Browser tidak boleh menulis laporan sendiri.
 const assert = require('node:assert/strict');
 const { Given, When, Then } = require('@cucumber/cucumber');
-const { mockSupabaseTable, expectText } = require('./support_playwright');
+const { mockSupabaseTable, simulateLaporanServer, expectText } = require('./support_playwright');
 
 const URL_INPUT = 'https://contoh-situs.com';
 // Pemindaian link bisa makan waktu; batas bawaan step di modul lain hanya 15 detik
@@ -13,6 +13,7 @@ const SCAN_TIMEOUT = { timeout: 120 * 1000 };
 Given('penyimpanan laporan di Supabase disimulasikan', async function () {
   this.laporan = [];
   await mockSupabaseTable(this, 'laporan_analisis', this.laporan);
+  await simulateLaporanServer(this, this.laporan);
   const page = await this.getPage();
   await page.route('**/storage/v1/object/**', (route) => {
     this.writes.push({ table: 'storage', method: route.request().method() });
@@ -32,13 +33,31 @@ Given('pengguna membuka form analisis situs', SCAN_TIMEOUT, async function () {
   }, URL_INPUT, { timeout: 60000 });
 });
 
+// Respons route bila halaman berhasil dibuka dan isinya berisi promosi judi. Baris laporan yang
+// disimpan server ikut disiapkan agar halaman hasil bisa menampilkannya.
 Given('mesin deteksi membuka link dan menemukan promosi judi di isi halamannya', async function () {
   const page = await this.getPage();
+  const id = 990002;
+  this.laporan.push({
+    id, url_situs: 'https://situs-netral.com', status: 'DRAFT', tingkat_risiko: 'HIGH', skor_probabilitas: 91,
+    url_pattern_analysis: 'Normal (0%)', visual_similarity: 'Tidak dianalisis', ocr_flagged: false,
+    keywords_found: 'Ditemukan: slot gacor, maxwin', bukti_screenshot: null,
+    bukti_deteksi: {
+      versi: 1, skor: 91, indikasi: 'Tinggi', modul: {}, teks_ocr: null,
+      potongan_teks: [{ kalimat: 'Daftar slot gacor maxwin hari ini, deposit pulsa', highlight: ['slot gacor', 'maxwin'], kategori: 'slot', sumber: 'teks halaman' }],
+      halaman: {
+        status: 'SUCCESS', kode_gagal: null, keterangan: 'Halaman berhasil dibuka dan isinya dianalisis.',
+        url_diminta: 'https://situs-netral.com', url_akhir: 'https://situs-netral.com/', kode_http: 200,
+        judul: 'Beranda Promo', rantai_redirect: [], jumlah_karakter_teks: 1200, jumlah_link: 14, sumber_screenshot: null,
+      },
+    },
+  });
   await page.route('**/api/analyze', (route) => route.fulfill({
     status: 200,
     json: {
       success: true,
       url: 'https://situs-netral.com',
+      id,
       summary: {
         request_id: 'bdd-scan', overall_score: 0.91, overall_risk: 'high', indication: 'Tinggi',
         processing_time_ms: 4200,
@@ -86,11 +105,23 @@ When('pengguna menekan tombol SCAN', SCAN_TIMEOUT, async function () {
   ]).catch(() => {});
 });
 
+// Baris yang disimpan SERVER (ditangkap dari respons dry-run route /api/analyze)
 function savedLaporan(world) {
-  const write = world.writes.find((w) => w.table === 'laporan_analisis' && w.method === 'POST');
-  assert.ok(write, 'form tidak menyimpan laporan');
+  const write = world.writes.find((w) => w.table === 'laporan_analisis (server)');
+  assert.ok(write, 'server tidak menyimpan laporan');
   return write.body;
 }
+
+Then('browser tidak menulis laporan langsung ke Supabase', function () {
+  const direct = this.writes.filter((w) => w.table === 'laporan_analisis' || w.table === 'storage');
+  assert.equal(direct.length, 0, `browser menulis langsung: ${JSON.stringify(direct)}`);
+});
+
+Then('laporan yang tersimpan mencatat pemindaian halaman berstatus {string}', function (status) {
+  const halaman = savedLaporan(this).bukti_deteksi.halaman;
+  assert.ok(halaman, 'bukti_deteksi.halaman kosong');
+  assert.equal(halaman.status, status);
+});
 
 Then('laporan yang tersimpan memiliki tingkat risiko {string}', SCAN_TIMEOUT, async function (risiko) {
   const page = await this.getPage();

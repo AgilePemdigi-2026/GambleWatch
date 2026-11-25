@@ -2,6 +2,7 @@ Feature: Form Analisis Situs Memeriksa Isi Link (ANL + DET-06)
   Sebagai masyarakat
   Saya ingin link yang saya laporkan dibuka dan isinya diperiksa mesin deteksi
   Agar laporan tersimpan dengan tingkat risiko dan bukti yang berasal dari isi situs, bukan hanya alamatnya
+  Dan hasil itu disimpan oleh server sehingga tidak bisa dipalsukan dari browser
 
   Background:
     Given penyimpanan laporan di Supabase disimulasikan
@@ -11,17 +12,19 @@ Feature: Form Analisis Situs Memeriksa Isi Link (ANL + DET-06)
     Given mesin deteksi membuka link dan menemukan promosi judi di isi halamannya
     When pengguna memasukkan URL "https://situs-netral.com" pada form
     And pengguna menekan tombol SCAN
-    Then laporan yang tersimpan memiliki tingkat risiko "HIGH"
-    And laporan yang tersimpan mencatat halaman "Beranda Promo" berhasil dibuka
-    And laporan yang tersimpan memiliki kata kunci "slot gacor"
+    Then halaman hasil analisis menampilkan "HIGH"
     And halaman hasil analisis menampilkan "Halaman berhasil dibuka dan isinya dianalisis."
     And halaman hasil analisis menampilkan "BUKTI DARI ISI HALAMAN"
+    And halaman hasil analisis menampilkan "Beranda Promo"
+    And browser tidak menulis laporan langsung ke Supabase
 
   Scenario Outline: Link yang tidak bisa dibuka tetap dinilai dari alamatnya
     When pengguna memasukkan URL "<url>" pada form
     And pengguna menekan tombol SCAN
     Then laporan yang tersimpan memiliki tingkat risiko "<tingkat_risiko>"
+    And laporan yang tersimpan mencatat pemindaian halaman berstatus "FAILED"
     And halaman hasil analisis menampilkan "Domain tidak ditemukan atau sudah tidak aktif"
+    And browser tidak menulis laporan langsung ke Supabase
 
     Examples:
       | url                                | tingkat_risiko |

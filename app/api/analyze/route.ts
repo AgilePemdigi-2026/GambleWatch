@@ -1,12 +1,21 @@
-// Meneruskan analisis dari form ke layanan deteksi Python (DET-06).
-// Lewat server supaya alamat dan kunci layanan tidak terbuka ke browser dan tidak perlu CORS.
+// Analisis dari form: panggil layanan deteksi Python (DET-06), lalu SIMPAN laporannya di server.
+// Browser hanya menerima id laporan, sehingga hasil deteksi (risiko, skor, bukti) tidak bisa
+// dipalsukan dari browser.
 //
 //   * Ada URL  -> POST /scan: layanan MEMBUKA link-nya (Chromium headless), lalu menilai
 //                 URL, teks halaman, dan screenshot halaman/unggahan dengan DET-01..04.
 //   * Hanya gambar -> POST /analyze: OCR dan kemiripan visual atas unggahan.
+//
+// Penyimpanan memakai SUPABASE_SERVICE_ROLE_KEY (lib/supabase/server.ts). Header
+// x-gamblewatch-dry-run: 1 (hanya di luar production) menjalankan semuanya tanpa menulis ke
+// Supabase; dipakai BDD supaya tes tidak mengisi database tim.
 
-import type { DetectionSummary } from '@/lib/detection/analysis';
+import { toLaporanFields, type DetectionSummary } from '@/lib/detection/analysis';
 import { validateReportUrl } from '@/lib/detection/url';
+import { createSessionClient, createWriterClient } from '@/lib/supabase/server';
+
+const EVIDENCE_BUCKET = 'bukti-analisis';
+const DRY_RUN_ID = 990001;
 
 const DETECTION_API_URL = process.env.DETECTION_API_URL ?? 'http://127.0.0.1:8001';
 const DETECTION_API_KEY = process.env.DETECTION_API_KEY ?? '';
@@ -77,5 +86,67 @@ export async function POST(request: Request) {
   }
 
   const summary = (await response.json()) as DetectionSummary;
-  return Response.json({ success: true, url, summary });
+
+  // Gambar bukti: unggahan pengguna, atau screenshot halaman yang dibuka layanan deteksi
+  const evidence = hasScreenshot ? screenshot : screenshotFromScan(summary);
+  if (summary.scan) summary.scan.screenshot_base64 = null; // tidak perlu dikirim balik ke browser
+
+  const laporan = {
+    url_situs: url || 'Hanya Unggahan Gambar',
+    bukti_screenshot: null as string | null,
+    status: 'DRAFT',
+    user_id: await reporterId(),
+    ...toLaporanFields(summary),
+  };
+
+  const dryRun = request.headers.get('x-gamblewatch-dry-run') === '1' && process.env.NODE_ENV !== 'production';
+  if (dryRun) {
+    return Response.json({ success: true, url, summary, id: DRY_RUN_ID, laporan });
+  }
+
+  const { client } = createWriterClient();
+  if (evidence) {
+    const ext = evidence.type === 'image/png' ? 'png' : 'jpg';
+    const path = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${ext}`;
+    const { error: uploadError } = await client.storage
+      .from(EVIDENCE_BUCKET)
+      .upload(path, evidence, { contentType: evidence.type });
+    if (uploadError) {
+      console.error('Gagal mengunggah bukti:', uploadError.message);
+    } else {
+      laporan.bukti_screenshot = client.storage.from(EVIDENCE_BUCKET).getPublicUrl(path).data.publicUrl;
+    }
+  }
+
+  const { data: saved, error: saveError } = await client
+    .from('laporan_analisis')
+    .insert(laporan)
+    .select('id')
+    .single();
+  if (saveError || !saved) {
+    console.error('Gagal menyimpan laporan:', saveError?.message);
+    return error('Analisis selesai, tetapi laporan gagal disimpan. Coba lagi beberapa saat lagi.', 500);
+  }
+
+  return Response.json({ success: true, url, summary, id: saved.id });
+}
+
+// Pengguna yang sedang masuk (null bila melapor tanpa akun)
+async function reporterId(): Promise<string | null> {
+  try {
+    const supabase = await createSessionClient();
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Screenshot halaman dari hasil pemindaian link (base64) -> berkas untuk Storage
+function screenshotFromScan(summary: DetectionSummary): File | null {
+  const data = summary.scan?.screenshot_base64;
+  if (!data || summary.scan?.screenshot_source !== 'halaman') return null;
+  const bytes = Buffer.from(data, 'base64');
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+  return new File([bytes], `halaman.${isPng ? 'png' : 'jpg'}`, { type: isPng ? 'image/png' : 'image/jpeg' });
 }
