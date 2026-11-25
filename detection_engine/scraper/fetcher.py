@@ -30,6 +30,27 @@ DEFAULT_USER_AGENT = (
     "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 )
 MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+MAX_FRAMES = 20
+
+MOBILE_USER_AGENT = (
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+)
+SEARCH_USER_AGENT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+
+# Cara membuka halaman:
+#   desktop  pengunjung biasa di komputer
+#   mobile   pengunjung di HP (banyak situs judi menampilkan isi berbeda di HP)
+#   search   seolah dari mesin pencari: situs yang diretas sering hanya menampilkan spam judi
+#            ke Googlebot / pengunjung dari Google (cloaking), sementara pengunjung biasa
+#            melihat halaman normal
+PROFILES: Dict[str, Dict[str, Any]] = {
+    "desktop": {},
+    "mobile": {"viewport": {"width": 390, "height": 844}, "user_agent": MOBILE_USER_AGENT,
+               "is_mobile": True, "has_touch": True},
+    "search": {"user_agent": SEARCH_USER_AGENT,
+               "extra_http_headers": {"Referer": "https://www.google.com/"}},
+}
 
 LINKS_JS = """() => Array.from(document.querySelectorAll('a[href]'), a => a.href)"""
 META_JS = """() => (document.querySelector('meta[name="description" i]') || {}).content || ''"""
@@ -43,6 +64,7 @@ class FetchConfig:
     user_agent: str = DEFAULT_USER_AGENT
     max_text_chars: int = 200_000
     max_links: int = 300
+    max_scroll_screens: int = 3       # scroll & screenshot OCR sampai 3 tinggi layar
     headless: bool = True
     allow_private: bool = False       # HANYA untuk tes dengan server lokal
     resolver: Optional[Resolver] = None
@@ -61,6 +83,8 @@ class PageCapture:
     outbound_links: List[str]
     load_ms: int
     user_agent: str
+    ocr_screenshot: Optional[bytes] = None   # sampai 3 layar (JPEG), hanya bila halaman lebih panjang
+    profile: str = "desktop"
 
 
 @dataclass
@@ -144,7 +168,7 @@ class PageFetcher:
 
     # --- utama ---
 
-    def fetch(self, url: str) -> ScrapeOutcome:
+    def fetch(self, url: str, profile: str = "desktop") -> ScrapeOutcome:
         try:
             clean_url, _ = check_url(url, resolver=self.config.resolver,
                                      allow_private=self.config.allow_private)
@@ -156,9 +180,11 @@ class PageFetcher:
         self.start()
         assert self._browser is not None
         cfg = self.config
+        options: Dict[str, Any] = {"viewport": cfg.viewport, "user_agent": cfg.user_agent}
+        options.update(PROFILES.get(profile, {}))
         context = self._browser.new_context(
-            viewport=cfg.viewport, user_agent=cfg.user_agent, locale="id-ID",
-            timezone_id="Asia/Jakarta", accept_downloads=False, service_workers="block",
+            **options, locale="id-ID", timezone_id="Asia/Jakarta",
+            accept_downloads=False, service_workers="block",
         )
         try:
             context.route("**/*", self._guard)
@@ -176,9 +202,11 @@ class PageFetcher:
                 page.wait_for_load_state("networkidle", timeout=cfg.settle_ms)
             except Exception:
                 pass  # situs dengan iklan/polling tidak pernah benar-benar tenang
+            self._scroll(page)
             load_ms = int((time.monotonic() - started) * 1000)
 
-            capture = self._capture(page, clean_url, response, load_ms)
+            capture = self._capture(page, clean_url, response, load_ms,
+                                    user_agent=str(options["user_agent"]), profile=profile)
             code = classify_page(capture.final_url, capture.http_status,
                                  capture.title, capture.text)
             if code:
@@ -190,7 +218,20 @@ class PageFetcher:
         finally:
             context.close()
 
-    def _capture(self, page, requested_url: str, response, load_ms: int) -> PageCapture:
+    def _scroll(self, page) -> None:
+        """Scroll pelan sampai beberapa layar supaya konten yang dimuat saat di-scroll ikut muncul."""
+        try:
+            height = (page.viewport_size or self.config.viewport)["height"]
+            for _ in range(max(0, self.config.max_scroll_screens - 1)):
+                page.evaluate("(h) => window.scrollBy(0, h)", height)
+                page.wait_for_timeout(400)
+            page.evaluate("() => window.scrollTo(0, 0)")
+            page.wait_for_timeout(300)
+        except Exception:
+            pass  # halaman yang menolak scroll tetap diambil apa adanya
+
+    def _capture(self, page, requested_url: str, response, load_ms: int,
+                 user_agent: str = DEFAULT_USER_AGENT, profile: str = "desktop") -> PageCapture:
         cfg = self.config
         chain: List[str] = []
         if response is not None:
@@ -205,7 +246,13 @@ class PageFetcher:
             except Exception:
                 return default
 
-        text = safe(lambda: page.inner_text("body", timeout=5_000), "")
+        # Teks halaman utama + isi iframe (spam judi sering disisipkan lewat iframe)
+        parts = [safe(lambda: page.inner_text("body", timeout=5_000), "")]
+        for frame in page.frames[1:MAX_FRAMES + 1]:
+            frame_text = safe(lambda f=frame: f.inner_text("body", timeout=2_000), "")
+            if frame_text.strip():
+                parts.append(frame_text)
+        text = "\n".join(parts)
         links = safe(lambda: page.evaluate(LINKS_JS), []) or []
         seen, outbound = set(), []
         for href in links:
@@ -226,8 +273,29 @@ class PageFetcher:
             screenshot=self._screenshot(page),
             outbound_links=outbound,
             load_ms=load_ms,
-            user_agent=cfg.user_agent,
+            user_agent=user_agent,
+            ocr_screenshot=self._long_screenshot(page),
+            profile=profile,
         )
+
+    def _long_screenshot(self, page) -> Optional[bytes]:
+        """Screenshot dari atas sampai maks. `max_scroll_screens` layar, untuk OCR.
+
+        None bila halaman tidak lebih panjang dari satu layar (layar pertama sudah cukup).
+        """
+        try:
+            view = page.viewport_size or self.config.viewport
+            page_height = page.evaluate(
+                "() => Math.max(document.documentElement.scrollHeight,"
+                " document.body ? document.body.scrollHeight : 0)")
+            height = int(min(page_height, view["height"] * self.config.max_scroll_screens))
+            if height <= view["height"]:
+                return None
+            image = page.screenshot(type="jpeg", quality=70, full_page=True, timeout=20_000,
+                                    clip={"x": 0, "y": 0, "width": view["width"], "height": height})
+            return image if len(image) <= MAX_SCREENSHOT_BYTES else None
+        except Exception:
+            return None
 
     @staticmethod
     def _screenshot(page) -> Optional[bytes]:

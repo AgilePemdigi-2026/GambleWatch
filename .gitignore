@@ -47,4 +47,5 @@ __pycache__/
 .pytest_cache/
 .env
 data/samples/
-data/reference_index.npz
+# data/reference_index.npz sengaja DI-COMMIT: hanya hash pHash + nama file (±1 KB), dipakai DET-02
+data/scraper/

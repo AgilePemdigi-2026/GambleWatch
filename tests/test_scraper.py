@@ -150,11 +150,29 @@ BLOCK_PAGE = """<!doctype html><html><head><title>Internet Positif</title></head
 <body><p>Maaf, situs ini diblokir karena mengandung konten negatif.</p></body></html>"""
 
 
+FRAME_PAGE = """<!doctype html><html><head><title>Beranda Kampus</title></head>
+<body><h1>Selamat datang</h1><iframe src="/isi_bingkai.html" width="600" height="200"></iframe></body></html>"""
+
+FRAME_CONTENT = """<!doctype html><html><body><p>Link alternatif slot gacor maxwin terbaru</p></body></html>"""
+
+LONG_PAGE = """<!doctype html><html><head><title>Artikel</title></head>
+<body style="margin:0"><div style="height:2600px;background:linear-gradient(#fff,#ddd)">Isi artikel</div>
+<p>Penutup halaman</p></body></html>"""
+
+MOBILE_PAGE = """<!doctype html><html><head><title>Beranda</title></head><body><p id="isi">Toko online</p>
+<script>if (/Android/.test(navigator.userAgent)) document.getElementById('isi').textContent = 'Promo khusus HP: slot gacor';</script>
+</body></html>"""
+
+
 @pytest.fixture(scope="module")
 def local_site(tmp_path_factory):
     root = tmp_path_factory.mktemp("situs")
     (root / "index.html").write_text(GAMBLING_PAGE, encoding="utf-8")
     (root / "blokir.html").write_text(BLOCK_PAGE, encoding="utf-8")
+    (root / "bingkai.html").write_text(FRAME_PAGE, encoding="utf-8")
+    (root / "isi_bingkai.html").write_text(FRAME_CONTENT, encoding="utf-8")
+    (root / "panjang.html").write_text(LONG_PAGE, encoding="utf-8")
+    (root / "hp.html").write_text(MOBILE_PAGE, encoding="utf-8")
 
     class QuietHandler(SimpleHTTPRequestHandler):
         def log_message(self, *args):
@@ -207,3 +225,38 @@ def test_scrape_local_block_page(local_site, browser_fetcher):
 def test_scrape_missing_page(local_site, browser_fetcher):
     outcome = browser_fetcher.fetch(f"{local_site}/tidak-ada.html")
     assert outcome.status == "FAILED" and outcome.failure_code == "HTTP_4XX"
+
+
+def test_iframe_text_is_included(local_site, browser_fetcher):
+    outcome = browser_fetcher.fetch(f"{local_site}/bingkai.html")
+    assert outcome.status == "SUCCESS", outcome.failure_message
+    assert "slot gacor maxwin" in outcome.capture.text
+
+
+def test_long_page_gets_ocr_screenshot_up_to_three_screens(local_site, browser_fetcher):
+    import io
+
+    from PIL import Image
+
+    outcome = browser_fetcher.fetch(f"{local_site}/panjang.html")
+    assert outcome.capture.ocr_screenshot is not None
+    height = Image.open(io.BytesIO(outcome.capture.ocr_screenshot)).height
+    assert 900 < height <= 900 * 3
+    # halaman satu layar tidak butuh screenshot panjang
+    assert browser_fetcher.fetch(f"{local_site}/index.html").capture.ocr_screenshot is None
+
+
+def test_mobile_profile_sees_mobile_only_content(local_site, browser_fetcher):
+    desktop = browser_fetcher.fetch(f"{local_site}/hp.html")
+    mobile = browser_fetcher.fetch(f"{local_site}/hp.html", profile="mobile")
+    assert "slot gacor" not in desktop.capture.text
+    assert "slot gacor" in mobile.capture.text
+    assert mobile.capture.profile == "mobile"
+
+
+@pytest.mark.parametrize("title,text", [
+    ("Attention Required! | Cloudflare", "Sorry, you have been blocked"),
+    ("", "filmfreeway.com Performing security verification This website uses a security service"),
+])
+def test_cloudflare_block_pages_are_bot_protection(title, text):
+    assert classify_page("https://a.test/", 403, title, text) == "BOT_PROTECTION"

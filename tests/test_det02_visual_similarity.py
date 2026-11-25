@@ -258,3 +258,37 @@ def main(argv) -> int:
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
+
+def test_build_skips_blank_duplicate_and_rejected_images(tmp_path):
+    folder = tmp_path / "refs"
+    folder.mkdir()
+    make_site_screenshot(0).save(folder / "a.png")
+    make_site_screenshot(0).save(folder / "a_salinan.png")      # duplikat pHash
+    Image.new("RGB", (640, 480), "white").save(folder / "kosong.png")
+    make_site_screenshot(1).save(folder / "blokir.png")
+    make_site_screenshot(2).save(folder / "c.png")
+    skipped = {}
+
+    def reject_blokir(image):
+        return "halaman blokir" if image.convert("RGB").getpixel((20, 450)) == (0, 0, 0) else None
+
+    built = ReferenceIndex.build_from_directory(
+        folder, skip_check=reject_blokir,
+        on_skip=lambda name, reason: skipped.update({name: reason}))
+
+    assert [m["filename"] for m in built.metadata] == ["a.png", "c.png"]
+    assert skipped["a_salinan.png"].startswith("duplikat")
+    assert skipped["kosong.png"] == "gambar hampir polos"
+    assert skipped["blokir.png"] == "halaman blokir"
+
+
+def test_blank_screenshot_never_matches(tmp_path):
+    index = ReferenceIndex()
+    index.add(make_site_screenshot(0), {"id": "site-a"})
+    path = tmp_path / "index.npz"
+    index.save(path)
+    blank = BytesIO()
+    Image.new("RGB", (640, 480), "white").save(blank, format="PNG")
+    result = VisualSimilarityDetector(index_path=path).detect(blank.getvalue())
+    assert result.label == "No Visual Match" and result.score == 0.0

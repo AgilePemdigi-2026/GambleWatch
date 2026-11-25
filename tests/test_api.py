@@ -140,7 +140,7 @@ class FakeScanner:
         self.outcome = outcome
         self.urls = []
 
-    async def fetch(self, url):
+    async def fetch(self, url, profile="desktop"):
         self.urls.append(url)
         return self.outcome
 
@@ -278,3 +278,97 @@ def test_scan_real_browser_and_pipeline_detect_content_behind_neutral_url(tmp_pa
     assert body["scan"]["status"] == "SUCCESS" and body["scan"]["title"] == "Beranda"
     assert body["modules"]["keyword_analysis"]["score"] > 0
     assert body["indication"] in ("Sedang", "Tinggi")
+
+
+class ProfileScanner:
+    """Halaman berbeda per profil: tampilan biasa bersih, versi untuk Google berisi spam judi."""
+
+    def __init__(self, texts):
+        self.texts = texts
+        self.profiles = []
+
+    async def fetch(self, url, profile="desktop"):
+        self.profiles.append(profile)
+        return ScrapeOutcome("SUCCESS", capture=page_capture(text=self.texts.get(profile, "")))
+
+
+class KeywordStub:
+    """DET-04 palsu: skor tinggi hanya bila teks memuat 'slot gacor'."""
+
+    def __init__(self):
+        self.detector_type = DetectorType.TEXT_KEYWORD
+
+    def detect(self, value, timeout=None):
+        score = 0.9 if "slot gacor" in str(value) else 0.0
+        return DetectionResult(detector=self.detector_type, status=DetectionStatus.OK,
+                               label="stub", score=score, evidence={}, duration_ms=1)
+
+
+def _retry_client(texts):
+    pipeline = DetectionPipeline(
+        url_detector=StubDetector(DetectorType.URL_PATTERN, 0.0), text_detector=KeywordStub(),
+        ocr_detector=StubDetector(DetectorType.OCR, 0.0),
+        visual_detector=StubDetector(DetectorType.VISUAL_SIMILARITY, 0.0))
+    scanner = ProfileScanner(texts)
+    app.dependency_overrides[get_pipeline] = lambda: pipeline
+    app.dependency_overrides[get_scanner] = lambda: scanner
+    return TestClient(app), scanner
+
+
+def test_scan_detects_cloaking_shown_only_to_search_engines():
+    client, scanner = _retry_client({"desktop": "Berita kampus hari ini", "search": "slot gacor maxwin"})
+    try:
+        body = client.post("/scan", data={"url": "https://kampus.example"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert scanner.profiles == ["desktop", "search", "mobile"]
+    assert body["scan"]["profile"] == "search"
+    assert body["scan"]["cloaking"] is True
+    assert body["indication"] in ("Sedang", "Tinggi")
+
+
+def test_scan_does_not_retry_when_desktop_already_flags():
+    client, scanner = _retry_client({"desktop": "slot gacor maxwin"})
+    try:
+        body = client.post("/scan", data={"url": "https://slot.example"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert scanner.profiles == ["desktop"]
+    assert body["scan"]["cloaking"] is False
+
+
+def test_scan_mobile_only_content_is_used_without_cloaking_flag():
+    client, _ = _retry_client({"desktop": "Toko online", "mobile": "Promo khusus HP slot gacor"})
+    try:
+        body = client.post("/scan", data={"url": "https://toko.example"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body["scan"]["profile"] == "mobile"
+    assert body["scan"]["cloaking"] is False
+
+
+class InformationalStub(KeywordStub):
+    """Halaman membahas judi (ada kata "judi") tetapi dinilai informatif: skor rendah."""
+
+    def detect(self, value, timeout=None):
+        if "judi" in str(value):
+            return DetectionResult(detector=self.detector_type, status=DetectionStatus.OK, label="No Keywords",
+                                   score=0.05, evidence={"keywords_found": [{"keyword": "judi"}]}, duration_ms=1)
+        return super().detect(value, timeout)
+
+
+def test_scan_does_not_retry_pages_that_discuss_gambling():
+    # Wikipedia "Perjudian" versi HP lebih pendek, konteks informatifnya hilang -> sempat Tinggi
+    pipeline = DetectionPipeline(
+        url_detector=StubDetector(DetectorType.URL_PATTERN, 0.0), text_detector=InformationalStub(),
+        ocr_detector=StubDetector(DetectorType.OCR, 0.0),
+        visual_detector=StubDetector(DetectorType.VISUAL_SIMILARITY, 0.0))
+    scanner = ProfileScanner({"desktop": "Sejarah judi dan dampaknya", "mobile": "slot gacor judi"})
+    app.dependency_overrides[get_pipeline] = lambda: pipeline
+    app.dependency_overrides[get_scanner] = lambda: scanner
+    try:
+        body = TestClient(app).post("/scan", data={"url": "https://wiki.example/judi"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert scanner.profiles == ["desktop"]
+    assert body["indication"] == "Rendah"

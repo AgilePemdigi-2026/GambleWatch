@@ -143,13 +143,13 @@ class PageScanner:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="scanner")
         self._fetcher: Optional[PageFetcher] = None
 
-    def _fetch(self, url: str) -> ScrapeOutcome:
+    def _fetch(self, url: str, profile: str) -> ScrapeOutcome:
         if self._fetcher is None:
             self._fetcher = PageFetcher(self._config)
-        return self._fetcher.fetch(url)
+        return self._fetcher.fetch(url, profile=profile)
 
-    async def fetch(self, url: str) -> ScrapeOutcome:
-        return await asyncio.wrap_future(self._executor.submit(self._fetch, url))
+    async def fetch(self, url: str, profile: str = "desktop") -> ScrapeOutcome:
+        return await asyncio.wrap_future(self._executor.submit(self._fetch, url, profile))
 
     def _close(self) -> None:
         if self._fetcher is not None:
@@ -233,7 +233,50 @@ async def scan(
         raise HTTPException(422, "URL wajib diisi untuk pemindaian.")
 
     image = await _read_screenshot(screenshot) if screenshot else None
-    outcome = await scanner.fetch(url)
+
+    # 1. Tampilan biasa (komputer)
+    outcome, summary = await _assess(url, "desktop", image, scanner, pipeline)
+    variants = [{"profile": "desktop", "status": outcome.status,
+                 "score": summary["overall_score"] if outcome.ok else None}]
+
+    # 2. Bila halaman terbuka tetapi sama sekali tidak menyebut kata judi: coba sebagai
+    #    pengunjung dari Google (situs diretas sering cloaking) dan sebagai pengunjung HP.
+    #    Halaman yang MEMBAHAS judi (berita, ensiklopedia) sudah dinilai dari isinya dan
+    #    tidak dicoba ulang: versi HP-nya sering lebih pendek sehingga konteksnya hilang.
+    best_outcome, best_summary, best_profile = outcome, summary, "desktop"
+    mentions_gambling = any(
+        summary["modules"].get(key, {}).get("findings") for key in ("keyword_analysis", "ocr"))
+    if outcome.ok and summary["overall_risk"] == "low" and not mentions_gambling:
+        for profile in RETRY_PROFILES:
+            alt_outcome, alt_summary = await _assess(url, profile, image, scanner, pipeline)
+            variants.append({"profile": profile, "status": alt_outcome.status,
+                             "score": alt_summary["overall_score"] if alt_outcome.ok else None})
+            if alt_outcome.ok and alt_summary["overall_score"] > best_summary["overall_score"]:
+                best_outcome, best_summary, best_profile = alt_outcome, alt_summary, profile
+
+    info = _scan_info(url, best_outcome, uploaded=image is not None)
+    info["profile"] = best_profile
+    info["variants"] = variants
+    search = next((v for v in variants if v["profile"] == "search"), None)
+    info["cloaking"] = bool(
+        search and search["score"] is not None
+        and search["score"] - summary["overall_score"] >= CLOAKING_GAP
+        and best_summary["overall_risk"] != "low")
+    if info["cloaking"]:
+        info["message"] = ("Situs menampilkan konten judi hanya kepada pengunjung dari mesin pencari "
+                           "(cloaking). Ini tanda kuat situs telah diretas.")
+    best_summary["scan"] = info
+    return best_summary
+
+
+RETRY_PROFILES = ("search", "mobile")
+CLOAKING_GAP = 0.3   # selisih skor tampilan "dari Google" vs biasa yang dianggap cloaking
+
+
+async def _assess(url: str, profile: str, image: Optional[bytes],
+                  scanner: "PageScanner", pipeline: DetectionPipeline):
+    """Buka halaman dengan satu profil lalu nilai dengan pipeline. -> (outcome, summary)"""
+    outcome = await scanner.fetch(url, profile=profile)
 
     # Isi halaman hanya dinilai bila halaman benar-benar terbuka. Halaman blokir,
     # tantangan anti-bot, dan halaman error bukan konten situs.
@@ -244,6 +287,8 @@ async def scan(
                    "meta": {"description": capture.meta_description},
                    "links": capture.outbound_links, "media_urls": []}
     page_shot = capture.screenshot if capture is not None else None
+    # Screenshot panjang hanya untuk OCR; unggahan pengguna tetap diutamakan
+    ocr_shot = None if image else (capture.ocr_screenshot if capture is not None else None)
 
     detection_input = None
     candidates = [capture.final_url] if capture is not None else []
@@ -251,7 +296,8 @@ async def scan(
     for candidate in candidates:
         try:
             detection_input = DetectionInput.model_validate(
-                {"url": candidate, "screenshot": image or page_shot, "scraped": scraped})
+                {"url": candidate, "screenshot": image or page_shot,
+                 "ocr_screenshot": ocr_shot, "scraped": scraped})
             break
         except ValidationError:
             continue
@@ -259,6 +305,4 @@ async def scan(
         raise HTTPException(422, "URL tidak valid. Gunakan alamat http atau https.")
 
     result = await pipeline.run_all_async(detection_input)
-    summary = pipeline.get_summary(result)
-    summary["scan"] = _scan_info(url, outcome, uploaded=image is not None)
-    return summary
+    return outcome, pipeline.get_summary(result)

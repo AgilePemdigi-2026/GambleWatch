@@ -31,7 +31,9 @@ BOT_TITLES = re.compile(
     r"|security check|one more step)", re.IGNORECASE)
 BOT_TEXT = re.compile(
     r"checking (?:if the site connection is secure|your browser)|verify you are (?:a )?human"
-    r"|enable javascript and cookies to continue|ddos protection by|cf-chl|ray id:",
+    r"|enable javascript and cookies to continue|ddos protection by|cf-chl|ray id:"
+    r"|you have been blocked|performing security verification"
+    r"|this website is using a security service to protect itself",
     re.IGNORECASE)
 BOT_PAGE_MAX_CHARS = 2000
 
