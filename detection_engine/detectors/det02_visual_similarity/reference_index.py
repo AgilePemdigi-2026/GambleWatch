@@ -10,7 +10,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -26,6 +26,18 @@ except ImportError:  # pragma: no cover - depends on the environment
 logger = logging.getLogger(__name__)
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
+
+
+# Grayscale standard deviation (0-255) below which an image is treated as near-blank.
+# Blank, white or single-colour screenshots all share the same pHash, so matching them
+# would flag any empty page as "visually similar" to a gambling site.
+MIN_CONTRAST = 12.0
+
+
+def is_low_information(image: "Image.Image") -> bool:
+    """True for near-blank images that carry no visual identity."""
+    gray = np.asarray(image.convert("L").resize((256, 256)), dtype=np.float32)
+    return float(gray.std()) < MIN_CONTRAST
 
 
 def compute_phash_bits(image: "Image.Image") -> np.ndarray:
@@ -80,11 +92,18 @@ class ReferenceIndex:
     def build_from_directory(cls, image_dir: Union[str, Path],
                              metadata_file: Optional[Union[str, Path]] = None,
                              embedder: Optional["ClipEmbedder"] = None,
-                             limit: int = 1000) -> "ReferenceIndex":
+                             limit: int = 1000,
+                             skip_check: Optional[Callable[["Image.Image"], Optional[str]]] = None,
+                             on_skip: Optional[Callable[[str, str], None]] = None) -> "ReferenceIndex":
         """Build an index from every JPG/PNG in `image_dir`.
 
         `metadata_file` is an optional JSON object mapping filename to extra
         fields (type, category, risk_level, ...).
+
+        Images that would make every site look alike are left out: near-blank
+        images and exact pHash duplicates always, plus anything `skip_check`
+        rejects (it returns a reason, e.g. "halaman blokir Cloudflare"). Each
+        skipped file is reported to `on_skip(filename, reason)`.
         """
         if not HASH_AVAILABLE:
             raise RuntimeError("Install Pillow and imagehash to build the index")
@@ -97,12 +116,30 @@ class ReferenceIndex:
         if metadata_file and Path(metadata_file).exists():
             extra = json.loads(Path(metadata_file).read_text(encoding="utf-8"))
 
+        def skip(name: str, reason: str) -> None:
+            logger.info("Skipping %s: %s", name, reason)
+            if on_skip:
+                on_skip(name, reason)
+
         files = sorted(p for p in image_dir.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
         index = cls(model_name=embedder.model_name if embedder else None)
+        seen: Dict[bytes, str] = {}
         for path in files[:limit]:
             try:
                 with Image.open(path) as image:
                     image.load()
+                    if is_low_information(image):
+                        skip(path.name, "gambar hampir polos")
+                        continue
+                    bits = compute_phash_bits(image).tobytes()
+                    if bits in seen:
+                        skip(path.name, f"duplikat {seen[bits]}")
+                        continue
+                    reason = skip_check(image) if skip_check else None
+                    if reason:
+                        skip(path.name, reason)
+                        continue
+                    seen[bits] = path.name
                     embedding = embedder.embed(image) if embedder else None
                     info = {"id": path.stem, "filename": path.name,
                             "type": "unknown", "category": "unknown",

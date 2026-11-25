@@ -6,6 +6,32 @@ import PublicHeader from '@/components/PublicHeader';
 import PublicFooter from '@/components/PublicFooter';
 import { createClient } from '@/lib/supabase/client';
 import { AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import type { BuktiDeteksi } from '@/lib/detection/analysis';
+
+// Kolom laporan_analisis yang dipakai halaman ini
+interface LaporanHasil {
+  id: number;
+  status?: string | null;
+  url_situs?: string | null;
+  tingkat_risiko?: string | null;
+  skor_probabilitas?: number | null;
+  url_pattern_analysis?: string | null;
+  visual_similarity?: string | null;
+  ocr_flagged?: boolean | null;
+  keywords_found?: string | null;
+  bukti_screenshot?: string | null;
+  bukti_deteksi?: BuktiDeteksi | null;
+}
+
+// Tebalkan kata kunci judi di dalam potongan kalimat
+function highlight(text: string, words: string[]) {
+  const terms = words.filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!terms.length) return text;
+  // Hanya kata utuh: "judi" di dalam "perjudian" tidak disorot
+  return text.split(new RegExp(`(?<![\\p{L}\\d])(${terms.join('|')})(?![\\p{L}\\d])`, 'giu')).map((part, i) =>
+    i % 2 === 1 ? <mark key={i} className="bg-amber-200 text-[#2C1810] font-bold rounded px-0.5">{part}</mark> : part,
+  );
+}
 
 function ResultContent() {
   const searchParams = useSearchParams();
@@ -14,7 +40,7 @@ function ResultContent() {
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<LaporanHasil | null>(null);
 
   // State untuk Kontrol Pop-Up Modal
   const [modalState, setModalState] = useState<{
@@ -162,6 +188,11 @@ function ResultContent() {
   const ocrStatus = data?.ocr_flagged ? 'OCR Flagged' : (isPending ? 'Memproses...' : 'Clean / Clear');
   const keywords = data?.keywords_found || (isPending ? 'Memproses...' : 'Keywords Found: None');
 
+  // Bukti dari isi halaman yang dibuka mesin deteksi (laporan_analisis.bukti_deteksi)
+  const bukti = data?.bukti_deteksi ?? null;
+  const halaman = bukti?.halaman ?? null;
+  const potongan = (bukti?.potongan_teks ?? []).slice(0, 3);
+
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans relative">
       <PublicHeader activeTab="analysis" />
@@ -197,6 +228,44 @@ function ResultContent() {
             URL <span className="font-semibold">{data?.url_situs || 'situs'}</span> menunjukkan indikasi yang telah dianalisis oleh sistem.
           </p>
         </div>
+
+        {halaman && (
+          <section className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 mb-8" aria-label="Halaman yang dipindai">
+            <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-2">HALAMAN YANG DIPINDAI</p>
+            <p className="text-sm font-bold text-[#2C1810] mb-2">{halaman.keterangan}</p>
+            <div className="text-xs text-stone-600 space-y-1 break-all">
+              {halaman.judul && <p>Judul halaman: <span className="font-semibold">{halaman.judul}</span></p>}
+              {halaman.url_akhir && halaman.url_akhir !== halaman.url_diminta && (
+                <p>Dialihkan ke: <span className="font-semibold">{halaman.url_akhir}</span></p>
+              )}
+              {halaman.status === 'SUCCESS' && (
+                <p>{halaman.jumlah_karakter_teks.toLocaleString('id-ID')} karakter teks dan {halaman.jumlah_link} link diperiksa.</p>
+              )}
+            </div>
+            {data?.bukti_screenshot && halaman.sumber_screenshot === 'halaman' && (
+              // eslint-disable-next-line @next/next/no-img-element -- gambar dari Supabase Storage
+              <img
+                src={data.bukti_screenshot}
+                alt="Tangkapan layar halaman yang dipindai"
+                className="mt-4 w-full max-h-72 object-cover object-top rounded-xl border border-stone-200"
+              />
+            )}
+          </section>
+        )}
+
+        {potongan.length > 0 && (
+          <section className="bg-[#FAF5EE] p-5 rounded-2xl border border-stone-200 mb-8" aria-label="Bukti dari isi halaman">
+            <p className="text-[10px] font-black tracking-wider uppercase text-stone-500 mb-3">BUKTI DARI ISI HALAMAN</p>
+            <ul className="space-y-3">
+              {potongan.map((p, i) => (
+                <li key={i} className="text-xs text-stone-700 leading-relaxed">
+                  <span className="text-[10px] font-bold uppercase text-stone-400 mr-2">{p.sumber}</span>
+                  “{highlight(p.kalimat, p.highlight)}”
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <h2 className="text-lg font-bold text-[#2C1810] mb-4">Parameter Breakdown</h2>
         <hr className="border-stone-300 mb-6" />

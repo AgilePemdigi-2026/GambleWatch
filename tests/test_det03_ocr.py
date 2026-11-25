@@ -87,6 +87,43 @@ def test_blank_image_is_clear(detector, tesseract):
     assert result.score == 0.0
 
 
+# --- Kata yang dibaca Tesseract dengan keyakinan rendah dianggap noise ---
+
+def _word_data(words):
+    """Data mirip pytesseract.image_to_data: (kata, keyakinan, baris, paragraf)."""
+    return {
+        "text": [w for w, _, _, _ in words],
+        "conf": [c for _, c, _, _ in words],
+        "block_num": [1] * len(words),
+        "par_num": [p for _, _, _, p in words],
+        "line_num": [ln for _, _, ln, _ in words],
+    }
+
+
+def test_low_confidence_noise_words_are_dropped():
+    # Kasus nyata: screenshot example.com terbaca "... de Bet ou ..." dengan keyakinan 21,
+    # lalu DET-04 menandai "bet" sebagai istilah taruhan (skor 0.54, indikasi Sedang).
+    data = _word_data([("This", 95, 1, 1), ("domain", 93, 1, 1), ("Bet", 21, 2, 1),
+                       ("ou", 12, 2, 1), ("examples", 90, 2, 1)])
+    assert OCRDetector._confident_text(data) == "This domain\nexamples"
+
+
+def test_confident_words_keep_lines_and_paragraphs():
+    data = _word_data([("SLOT", 91, 1, 1), ("GACOR", 88, 1, 1), ("Daftar", 85, 2, 1),
+                       ("MAXWIN", 80, 1, 2), ("", -1, 1, 2), ("x500", "77.5", 1, 2)])
+    assert OCRDetector._confident_text(data) == "SLOT GACOR\nDaftar\n\nMAXWIN x500"
+
+
+def test_noise_text_no_longer_flags_detection(detector, monkeypatch):
+    data = _word_data([("Example", 92, 1, 1), ("Domain", 90, 1, 1), ("Bet", 21, 2, 1)])
+    monkeypatch.setattr("detection_engine.detectors.det03_ocr.ocr_detector.pytesseract.image_to_data",
+                        lambda *args, **kwargs: data)
+    monkeypatch.setattr(detector, "_tesseract_ready", lambda: True)
+    monkeypatch.setattr(detector, "_resolve_language", lambda: "eng")
+    result = detector.detect(render_text(["Example Domain"]))
+    assert result.label == "Clear" and result.score == 0.0
+
+
 # --- Data nyata dari data/samples/ocr/ (screenshot halaman sungguhan) ---
 
 @pytest.fixture(scope="module")

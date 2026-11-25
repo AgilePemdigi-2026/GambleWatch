@@ -179,7 +179,9 @@ class DetectionPipeline:
                 tasks.append({
                     'detector_type': DetectorType.OCR,
                     'task': self._run_ocr_detection,
-                    'args': (detection_input.screenshot,),
+                    # Screenshot panjang hasil scroll bila ada, supaya banner di bawah layar
+                    # pertama ikut terbaca
+                    'args': (detection_input.ocr_screenshot or detection_input.screenshot,),
                     'timeout': config.ocr_timeout,
                     'description': 'OCR detection',
                 })
@@ -367,15 +369,27 @@ class DetectionPipeline:
         ok = {r.detector: r.score for r in results if r.status == DetectionStatus.OK}
         keyword = next((r for r in results if r.detector == DetectorType.TEXT_KEYWORD
                         and r.status == DetectionStatus.OK), None)
-        if (keyword and DetectorType.OCR in ok
-                and (keyword.evidence or {}).get('context') == 'informational'):
+        context = (keyword.evidence or {}).get('context') if keyword else None
+        if DetectorType.OCR in ok and context == 'informational':
             ok[DetectorType.OCR] *= TextKeywordDetector.INFORMATIONAL_FACTOR
-        independent = [
-            ok.get(DetectorType.URL_PATTERN),
-            ok.get(DetectorType.VISUAL_SIMILARITY),
-            max((ok[d] for d in (DetectorType.OCR, DetectorType.TEXT_KEYWORD) if d in ok),
-                default=None),
-        ]
+
+        # The page text decides how much a *weak* URL signal is worth. A news article
+        # about gambling has the topic in its address ("/bahaya-judi-online"), and a
+        # sports site has "bola" in both its domain and its text: that is one weak hint,
+        # not two independent pieces of evidence. Strong URL evidence (brand + number,
+        # gambling domain, >= the DET-01 high-risk threshold) always counts in full.
+        url_score = ok.get(DetectorType.URL_PATTERN)
+        url_is_weak = url_score is not None and url_score < config.url_pattern_high_risk_threshold
+        text_score = max((ok[d] for d in (DetectorType.OCR, DetectorType.TEXT_KEYWORD) if d in ok),
+                         default=None)
+        if url_is_weak and context == 'informational':
+            url_score *= TextKeywordDetector.INFORMATIONAL_FACTOR
+        elif url_is_weak and context == 'incidental':
+            url_score *= TextKeywordDetector.INCIDENTAL_FACTOR
+        elif url_is_weak and context == 'weak' and text_score is not None:
+            text_score, url_score = max(text_score, url_score), None
+
+        independent = [url_score, ok.get(DetectorType.VISUAL_SIMILARITY), text_score]
         remaining = 1.0
         for score in independent:
             if score is not None:

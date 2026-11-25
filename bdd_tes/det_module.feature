@@ -6,8 +6,8 @@ Feature: Mesin Deteksi Situs Judi Online (DET-01 sampai DET-06)
   Background:
     Given layanan deteksi GambleWatch aktif
 
-  Scenario Outline: Menilai indikasi judi dari sebuah URL
-    When URL "<url>" dianalisis lewat form GambleWatch
+  Scenario Outline: Menilai indikasi judi dari pola sebuah URL (DET-01)
+    When pola URL "<url>" dinilai mesin deteksi
     Then tingkat indikasi hasil analisis adalah "<indikasi>"
 
     Examples:
@@ -20,7 +20,7 @@ Feature: Mesin Deteksi Situs Judi Online (DET-01 sampai DET-06)
       | https://www.zeus.com           | Rendah   |
 
   Scenario: Nama merek judi "kata + angka" dicatat sebagai temuan
-    When URL "https://zeus123.xyz" dianalisis lewat form GambleWatch
+    When pola URL "https://zeus123.xyz" dinilai mesin deteksi
     Then modul "url_pattern" mencatat temuan yang memuat "zeus123"
 
   Scenario: Teks promosi judi menghasilkan potongan kalimat yang disorot
@@ -31,6 +31,15 @@ Feature: Mesin Deteksi Situs Judi Online (DET-01 sampai DET-06)
   Scenario: Berita tentang judi online tidak ditandai sebagai situs judi
     When teks halaman "Polisi menangkap tersangka kasus judi online. Komdigi memblokir ribuan situs judi. OJK mengimbau masyarakat waspada terhadap bahaya judi dan dampak kecanduan judi." dianalisis mesin deteksi
     Then modul "keyword_analysis" memberi label "No Keywords"
+
+  Scenario Outline: Link yang tidak lengkap ditolak form GambleWatch
+    When form GambleWatch mengirim link "<url>"
+    Then analisis ditolak dengan pesan "<pesan>"
+
+    Examples:
+      | url               | pesan                                                                                       |
+      | zeus123.xyz       | Masukkan link lengkap yang diawali http:// atau https://, contoh: https://contoh-situs.com |
+      | https://zeus123   | Link harus memuat nama domain yang lengkap (mis. .com, .id, .xyz). Contoh: https://contoh-situs.com |
 
   Scenario: Analisis tanpa URL dan tanpa tangkapan layar ditolak
     When form GambleWatch mengirim analisis tanpa URL dan tanpa tangkapan layar
