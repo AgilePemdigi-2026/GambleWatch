@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/storage/v1/object/public/**",
       },
+      {
+        protocol: "https",
+        hostname: "gamblewatch-supabase.caiis.ai.id",
+        port: "",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
   experimental: {

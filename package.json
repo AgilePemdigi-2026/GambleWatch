@@ -22,10 +22,7 @@
     "@badeball/cypress-cucumber-preprocessor": "^28.0.1",
     "@bahmutov/cypress-esbuild-preprocessor": "^2.2.8",
     "@cucumber/cucumber": "^13.3.0",
-<<<<<<< HEAD
-=======
     "@playwright/test": "^1.65.0",
->>>>>>> 4ccb24fcd78888812af783841d9fe93cccc8c6b9
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20.19.43",
     "@types/react": "^19",
@@ -35,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "playwright": "^1.65.0",
+    "supabase": "^3.4.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
