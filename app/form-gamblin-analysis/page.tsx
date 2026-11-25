@@ -56,9 +56,12 @@ export default function GamblingAnalysisFormPage() {
         ? `High Risk (${scoreProb}%): Gambling keyword in domain detected` 
         : 'Low Risk: Domain disinyalir aman';
 
+      const { data: { user } } = await supabase.auth.getUser();
+
       const { data: insertedData, error: dbErr } = await supabase
         .from('laporan_analisis')
         .insert({
+          user_id: user?.id || null,
           url_situs: url.trim() || 'Hanya Unggahan Gambar',
           bukti_screenshot: publicImageUrl,
           tingkat_risiko: riskLevel,

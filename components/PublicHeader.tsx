@@ -8,7 +8,7 @@ import { LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface PublicHeaderProps {
-  activeTab?: 'home' | 'analysis' | 'feedback';
+  activeTab?: 'home' | 'analysis' | 'feedback' | 'my-analyses';
 }
 
 export default function PublicHeader({ activeTab = 'analysis' }: PublicHeaderProps) {
