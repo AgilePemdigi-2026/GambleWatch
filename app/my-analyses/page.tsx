@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import PublicHeader from "@/components/PublicHeader";
 import PublicFooter from "@/components/PublicFooter";
+import { createClient } from "@/lib/supabase/client";
 
 export default function MyAnalysesPage() {
   const [analyses, setAnalyses] = useState<any[]>([]);
@@ -12,13 +13,45 @@ export default function MyAnalysesPage() {
   useEffect(() => {
     async function fetchAnalyses() {
       try {
-        const response = await fetch("/api/my-analyses");
-        const result = await response.json();
-        if (result.success) {
-          setAnalyses(result.data);
-          if (result.data.length > 0) {
-            setExpandedId(result.data[0].id);
-          }
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("laporan_analisis")
+          .select("*")
+          .eq("user_id", user.id)
+          .neq("status", "DRAFT")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const mappedData = (data || []).map((row: any) => ({
+          id: String(row.id),
+          created_at: row.created_at,
+          site_url: row.url_situs,
+          risk_level: row.tingkat_risiko || "LOW",
+          report_status: `STATUS: ${row.status || "SUBMITTED"}`,
+          hasil_analisis:
+            typeof row.skor_probabilitas === "number"
+              ? `${row.tingkat_risiko} (${Math.round(row.skor_probabilitas)}% Probability)`
+              : row.tingkat_risiko || "-",
+          url_pattern_analysis: row.url_pattern_analysis || "-",
+          visual_similarity: row.visual_similarity || "00% Match",
+          image_to_text_analysis: row.ocr_flagged ? "OCR Flagged" : "Clean / Clear",
+          keyword_analysis: row.keywords_found || "-",
+          screenshots: row.bukti_screenshot ? [row.bukti_screenshot] : [],
+        }));
+
+        setAnalyses(mappedData);
+        if (mappedData.length > 0) {
+          setExpandedId(mappedData[0].id);
         }
       } catch (error) {
         console.error("Gagal mengambil riwayat analisis:", error);
@@ -36,7 +69,7 @@ export default function MyAnalysesPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] text-[#3B1E12] flex flex-col justify-between font-sans">
-      <PublicHeader activeTab="analysis" />
+      <PublicHeader activeTab="my-analyses" />
 
       <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1">
         <h1 className="text-3xl font-extrabold text-[#2C1810] mb-1">
