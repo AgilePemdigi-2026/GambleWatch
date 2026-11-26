@@ -4,55 +4,63 @@ Feature: Modul Analisis Peringatan Dini & Detail Sinyal Anomali (EWR)
   Agar saya dapat melakukan evaluasi risiko dan mengeksekusi tindakan pemblokiran situs perjudian ilegal secara cepat dan akurat
 
   Background:
-    Given Administrator telah masuk ke sistem dan berada di halaman "Analisis Peringatan Dini" ("/admin/early-warning")
+    Given data sinyal peringatan dini disimulasikan:
+      | id  | url                                  | risiko | skor | status    | waktu      | temuan                                 |
+      | 127 | https://slotgacor-angker77.pages.dev | HIGH   | 95   | SUBMITTED | 1 jam lalu | keyword_analysis: slot, gacor, angker77 |
+      | 128 | https://togel-hoki.example           | MEDIUM | 55   | SUBMITTED | 1 jam lalu |                                        |
+      | 129 | https://toko-buku.example            | LOW    | 5    | SUBMITTED | 1 jam lalu |                                        |
 
-  # --- SKENARIO HALAMAN UTAMA EARLY WARNING (LISTING & TREN) ---
+  # --- HALAMAN UTAMA EARLY WARNING (LISTING & TREN) ---
 
-  Scenario: Menampilkan 4 Ringkasan Kartu Sinyal Anomali Domain Utama
-    Then Halaman EWR menampilkan 4 kartu sinyal anomali domain terindikasi
-    And Setiap kartu menampilkan nama domain, persentase peningkatan risiko, dan deskripsi indikasi
-    And Kartu dengan risiko tinggi menggunakan badge warna merah "HIGH RISK"
+  Scenario: Menampilkan kartu sinyal anomali domain terindikasi
+    When admin membuka halaman "/admin/early-warning"
+    Then halaman EWR menampilkan 3 kartu sinyal anomali
+    And kartu domain "https://slotgacor-angker77.pages.dev" menampilkan peningkatan risiko "+42%"
+    And kartu domain "https://togel-hoki.example" menampilkan peningkatan risiko "+18%"
 
-  Scenario: Pencarian Real-Time Domain dan Pola Indikasi
-    When Administrator memasukkan kata kunci "slotgacor" pada kolom pencarian
-    Then Sistem menyaring kartu dan tabel pola terindikasi
-    And Tampilan hanya menyajikan domain yang mengandung kata "slotgacor"
+  Scenario: Pencarian real-time domain dan pola indikasi
+    When admin membuka halaman "/admin/early-warning"
+    And administrator memasukkan kata kunci "slotgacor" pada kolom pencarian
+    Then halaman EWR menampilkan 1 kartu sinyal anomali
+    And tabel pola terindikasi hanya menampilkan domain yang mengandung "slotgacor"
 
-  Scenario: Mengubah Rentang Waktu Grafik Tren Indikasi ke "Bulan Ini"
-    When Administrator mengubah filter rentang waktu grafik menjadi "Bulan Ini"
-    Then Grafik SVG tren indikasi memperbarui titik koordinat data untuk bulan berjalan
-    And Keterangan rentang waktu grafik berubah menjadi "Bulan Ini"
+  Scenario: Mengubah rentang waktu grafik tren indikasi ke "Bulan Ini"
+    When admin membuka halaman "/admin/early-warning"
+    And administrator mengubah filter rentang waktu grafik menjadi "Bulan Ini"
+    Then keterangan rentang waktu grafik berubah menjadi "Bulan Ini"
+    And grafik tren indikasi hanya menampilkan bulan berjalan dengan nilai 3
 
-  Scenario: Mengubah Rentang Waktu Grafik Tren Indikasi ke "6 Bulan Terakhir"
-    When Administrator mengubah filter rentang waktu grafik menjadi "6 Bulan Terakhir"
-    Then Grafik SVG tren indikasi menampilkan pergerakan data dari bulan "Jun" hingga "Nov"
-    And Keterangan rentang waktu grafik berubah menjadi "Juni – November 2026"
+  Scenario: Mengubah rentang waktu grafik tren indikasi ke "6 Bulan Terakhir"
+    When admin membuka halaman "/admin/early-warning"
+    And administrator mengubah filter rentang waktu grafik menjadi "Bulan Ini"
+    And administrator mengubah filter rentang waktu grafik menjadi "6 Bulan Terakhir"
+    Then grafik tren indikasi menampilkan 6 bulan terakhir yang diakhiri bulan berjalan
+    And keterangan rentang waktu grafik menampilkan periode 6 bulan terakhir
 
-  Scenario: Filter Status Pola Terindikasi pada Tabel Utama
-    When Administrator menekan tombol filter "Tampilkan: Aktif"
-    Then Tabel pola terindikasi hanya menampilkan data dengan tingkat keparahan "Kritis" dan "Peringatan"
-    And Baris data dengan tingkat keparahan "Info" tidak ditampilkan
+  Scenario: Filter status pola terindikasi pada tabel utama
+    When admin membuka halaman "/admin/early-warning"
+    Then tabel pola terindikasi menampilkan tingkat keparahan "Kritis" dan "Peringatan"
+    And tabel pola terindikasi tidak menampilkan tingkat keparahan "Info"
+    When administrator menekan tombol filter "Semua Pola"
+    Then tabel pola terindikasi menampilkan tingkat keparahan "Info"
 
-  # --- SKENARIO HALAMAN DETAIL SINYAL EARLY WARNING ---
+  # --- HALAMAN DETAIL SINYAL EARLY WARNING ---
 
-  Scenario: Navigasi dan Verifikasi Halaman Rincian Detail Sinyal Anomali
-    Given Ada data sinyal di database Supabase dengan ID "127" untuk domain "https://slotgacor-angker77.pages.dev"
-    When Administrator menekan tombol "Lihat Detail" pada baris sinyal ID "127"
-    Then Pengguna diarahkan ke halaman rincian detail sinyal ("/admin/early-warning/127")
-    And Halaman detail menampilkan nama domain "https://slotgacor-angker77.pages.dev"
-    And Halaman detail menampilkan ID Sinyal "#127" dengan badge risiko "HIGH RISK"
-    And Section Rincian Sinyal menampilkan Kategori Pola Indikasi "Keywords Found: slot, gacor, angker77"
-    And Section Rincian Sinyal menampilkan Hasil Deteksi "High Risk (95%): Gambling keyword in domain: 'slot, gacor, angker77'"
-    And Section Rincian Sinyal menampilkan Waktu Peringatan Terpicu "11/11/2026, 22:13:51"
-    And Card Skor Sinyal Anomali Risk menampilkan nilai "95/100"
-    And Section Indikator Teknis menampilkan Evaluasi Risiko "HIGH RISK" dan Kategori Sistem "Keywords Found: slot, gacor, angker77"
+  Scenario: Navigasi dan verifikasi halaman rincian detail sinyal anomali
+    When admin membuka halaman "/admin/early-warning"
+    And administrator menekan tombol "Lihat Detail" pada baris domain "https://slotgacor-angker77.pages.dev"
+    Then halaman berpindah ke rute "/admin/early-warning/127"
+    And halaman menampilkan teks "ID Sinyal: #127"
+    And halaman menampilkan teks "https://slotgacor-angker77.pages.dev"
+    And halaman menampilkan teks "HIGH"
+    And halaman menampilkan teks "Rincian Sinyal Anomali Early Warning"
+    And skor sinyal anomali menampilkan "95"
 
-  Scenario: Eksekusi Aksi Inspeksi Situs External Link
-    Given Administrator berada di halaman rincian detail sinyal ID "127" ("/admin/early-warning/127")
-    When Administrator menekan tombol "Inspeksi Situs"
-    Then Sistem membuka URL situs "https://slotgacor-angker77.pages.dev" pada tab baru browser
+  Scenario: Tombol Inspeksi Situs membuka situs di tab baru
+    When admin membuka halaman "/admin/early-warning/127"
+    Then tombol "Inspeksi Situs" mengarah ke "https://slotgacor-angker77.pages.dev" di tab baru
 
-  Scenario: Navigasi Lanjutan ke Modul Proses Pemblokiran
-    Given Administrator berada di halaman rincian detail sinyal ID "127" ("/admin/early-warning/127")
-    When Administrator menekan tombol "Proses Pemblokiran ↗"
-    Then Pengguna diarahkan secara otomatis ke halaman status pemblokiran ("/admin/block-status/127")
+  Scenario: Navigasi lanjutan ke modul proses pemblokiran
+    When admin membuka halaman "/admin/early-warning/127"
+    And administrator menekan tombol "Proses Pemblokiran"
+    Then halaman berpindah ke rute "/admin/verifikasi/127"

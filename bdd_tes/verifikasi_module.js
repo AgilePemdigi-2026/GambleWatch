@@ -1,20 +1,33 @@
-const { Given, When, Then, setDefaultTimeout } = require('@cucumber/cucumber');
+const { Given, When, Then } = require('@cucumber/cucumber');
 const { expect } = require('@playwright/test');
+const { buildLaporan, mockSupabaseTable } = require('./support_playwright');
 
-// Set timeout global Cucumber 15 detik
-setDefaultTimeout(15 * 1000);
+// Laporan disimulasikan (page.route): tes selalu punya data yang sama dan
+// tombol "Update Status" tidak pernah mengubah laporan asli di database.
+async function bukaVerifikasi(world, url) {
+  const id = (/\/admin\/verifikasi\/(\d+)/.exec(url) || [])[1] || '126';
+  await mockSupabaseTable(world, 'laporan_analisis', [
+    buildLaporan({
+      id, url: 'https://slot-gacor-maxwin.example', risiko: 'HIGH', skor: '92',
+      status: 'Menunggu Verifikasi (Pending)', waktu: '1 jam lalu', pelapor: 'user-bdd-1',
+      temuan: 'keyword_analysis: slot gacor, maxwin',
+    }, 0),
+  ]);
+  const page = await world.getPage();
+  await page.goto(`${world.baseUrl}${url}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('slot-gacor-maxwin.example').first()).toBeVisible({ timeout: 30000 });
+}
 
-// Menangani step "membuka" dan "detail" (mengatasi undefined scenario)
 Given('Admin membuka halaman verifikasi laporan {string}', async function (url) {
-  await this.page.goto(`http://localhost:3000${url}`);
+  await bukaVerifikasi(this, url);
 });
 
 Given('Admin membuka halaman detail verifikasi laporan {string}', async function (url) {
-  await this.page.goto(`http://localhost:3000${url}`);
+  await bukaVerifikasi(this, url);
 });
 
 Given('Admin sedang berada di halaman verifikasi {string}', async function (url) {
-  await this.page.goto(`http://localhost:3000${url}`);
+  await bukaVerifikasi(this, url);
 });
 
 Then('Judul halaman {string} harus muncul di layar', async function (headingText) {
@@ -48,14 +61,16 @@ When('Admin mengklik tombol "Update Status"', async function () {
 });
 
 Then('Toast notifikasi pembaruan status harus muncul', async function () {
-  // Menargetkan item toast spesifik (li) bukan container-nya (ol)
-  const toastItem = this.page.locator('[data-sonner-toast], li[data-mounted="true"], [role="status"]').first();
+  // Harus toast SUKSES, bukan sembarang toast (mis. toast error gagal memuat)
+  const toastItem = this.page.locator('[data-sonner-toast]', { hasText: 'berhasil diperbarui' }).first();
   await expect(toastItem).toBeVisible({ timeout: 10000 });
+  const update = this.writes.find((w) => w.table === 'laporan_analisis' && w.method === 'PATCH');
+  if (!update) throw new Error('Status tidak dikirim ke Supabase (tidak ada PATCH laporan_analisis)');
 });
 
 Then('Admin diubah arahnya kembali ke halaman {string}', async function (urlTarget) {
-  await this.page.waitForURL(`http://localhost:3000${urlTarget}`, { timeout: 10000 });
-  expect(this.page.url()).toBe(`http://localhost:3000${urlTarget}`);
+  await this.page.waitForURL(`${this.baseUrl}${urlTarget}`, { timeout: 10000 });
+  expect(this.page.url()).toBe(`${this.baseUrl}${urlTarget}`);
 });
 
 When('Admin mengklik tombol "Riwayat Audit"', async function () {

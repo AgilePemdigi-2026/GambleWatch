@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:bdd": "cucumber-js --require 'bdd_tes/*.js' 'bdd_tes/*.feature'"
+    "test:bdd": "cucumber-js --require \"bdd_tes/*.js\" \"bdd_tes/*.feature\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

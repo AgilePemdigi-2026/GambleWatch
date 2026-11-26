@@ -1,206 +1,72 @@
+// Step ANL: unggah gambar bukti di form analisis dan tindakan di halaman hasil indikasi.
+// Tabel laporan_analisis disimulasikan oleh step "penyimpanan laporan di Supabase disimulasikan"
+// (anl_integrasi_module.js), jadi tes tidak pernah menulis ke database tim.
+const assert = require('node:assert/strict');
 const { Given, When, Then } = require('@cucumber/cucumber');
+const { expect } = require('@playwright/test');
+const { buildLaporan } = require('./support_playwright');
 
-// State simulasi DB & UI untuk pengujian BDD
-let mockState = {
-  url: '',
-  file: null,
-  buttonStatus: 'SCAN',
-  errorMessage: '',
-  redirectUrl: '',
-  currentReport: null,
-  dbRecords: [],
-  notification: '',
-};
+const SCAN_TIMEOUT = { timeout: 120 * 1000 };
 
-// --- BACKGROUND ---
-Given(/^Pengguna berada di halaman Form Analisis Situs \("([^"]+)"\)$/, function (path) {
-  mockState = {
-    url: '',
-    file: null,
-    buttonStatus: 'SCAN',
-    errorMessage: '',
-    redirectUrl: path,
-    currentReport: null,
-    dbRecords: [],
-    notification: '',
-  };
-  return true;
+// Buat PNG berisi teks besar (bahan OCR) dengan merender HTML di tab terpisah
+async function renderTextImage(context, text) {
+  const tab = await context.newPage();
+  await tab.setViewportSize({ width: 900, height: 260 });
+  await tab.setContent(`<body style="margin:0;background:#fff;display:flex;align-items:center;justify-content:center;height:260px">
+    <div style="font:bold 54px Arial,sans-serif;color:#000;text-align:center">${text}</div></body>`);
+  const buffer = await tab.screenshot({ type: 'png' });
+  await tab.close();
+  return buffer;
+}
+
+When('pengguna memilih gambar bukti bertuliskan {string}', async function (text) {
+  const buffer = await renderTextImage(this.context, text);
+  await this.page.locator('input[type="file"]').setInputFiles({
+    name: 'bukti_situs.png', mimeType: 'image/png', buffer,
+  });
 });
 
-// --- SCENARIO 1: Scan tanpa input ---
-When('Pengguna menekan tombol {string} tanpa memasukkan URL dan tanpa memilih file', function (buttonName) {
-  if (!mockState.url && !mockState.file) {
-    mockState.errorMessage = 'Masukkan URL atau unggah tangkapan layar terlebih dahulu.';
-  }
-  return true;
+Then('pengguna diarahkan ke halaman hasil indikasi', SCAN_TIMEOUT, async function () {
+  await this.page.waitForURL('**/form-gamblin-analysis/result?id=*', { timeout: 110000 });
+  await expect(this.page.getByRole('heading', { name: 'Analysis Results' })).toBeVisible({ timeout: 60000 });
 });
 
-Then('Sistem menampilkan pesan kesalahan {string}', function (expectedError) {
-  if (mockState.errorMessage !== expectedError) {
-    throw new Error(`Pesan kesalahan tidak cocok. Ekspektasi: ${expectedError}, Aktual: ${mockState.errorMessage}`);
-  }
-  return true;
+Then('laporan yang tersimpan berisi teks OCR {string}', function (kata) {
+  const write = this.writes.find((w) => w.table === 'laporan_analisis (server)');
+  assert.ok(write, 'server tidak menyimpan laporan');
+  const ocr = write.body.bukti_deteksi && write.body.bukti_deteksi.teks_ocr;
+  assert.ok(ocr, 'teks OCR kosong: apakah Tesseract OCR sudah terpasang di mesin API deteksi?');
+  assert.ok(ocr.toUpperCase().includes(kata), `teks OCR: ${ocr}`);
 });
 
-Then('Form tidak mengirimkan data ke database', function () {
-  if (mockState.dbRecords.length > 0) {
-    throw new Error('Data terkirim ke DB padahal input kosong!');
-  }
-  return true;
+Given('ada laporan analisis dengan ID {int} berstatus {string}', function (id, status) {
+  this.laporan.push(buildLaporan({
+    id: String(id), url: 'https://slot-gacor-maxwin.example', risiko: 'HIGH', skor: '92',
+    status, waktu: '1 jam lalu', temuan: 'keyword_analysis: slot gacor, maxwin',
+  }, 0));
 });
 
-// --- SCENARIO 2: Scan dengan URL saja ---
-When('Pengguna mengisi input URL dengan {string}', function (inputUrl) {
-  mockState.url = inputUrl;
-  return true;
+Given('pengguna membuka halaman hasil indikasi laporan {int}', async function (id) {
+  await this.page.goto(`${this.baseUrl}/form-gamblin-analysis/result?id=${id}`, { waitUntil: 'networkidle' });
+  await expect(this.page.getByText(`ID-${id}`)).toBeVisible({ timeout: 60000 });
 });
 
-When('Pengguna menekan tombol {string}', function (buttonName) {
-  mockState.buttonStatus = 'MEMINDAI...';
-  
-  // Simulasi logika klasifikasi sederhana & simpan DB
-  const isHighRisk = mockState.url.includes('slot') || mockState.url.includes('gacor');
-  const newRecord = {
-    id: '12',
-    url_situs: mockState.url,
-    bukti_screenshot: mockState.file ? 'https://supabase.co/storage/bukti-analisis/bukti_situs.png' : null,
-    tingkat_risiko: isHighRisk ? 'HIGH RISK' : 'LOW',
-    skor_probabilitas: isHighRisk ? 95 : 0,
-    status: 'DRAFT',
-  };
-  
-  mockState.dbRecords.push(newRecord);
-  mockState.currentReport = newRecord;
-  mockState.redirectUrl = `/form-gambling-analysis/result?id=${newRecord.id}`;
-  return true;
+When('pengguna menekan tombol {string}', async function (name) {
+  await this.page.getByRole('button', { name }).click({ timeout: 30000 });
 });
 
-Then('Sistem mengubah status tombol menjadi {string}', function (expectedStatus) {
-  if (mockState.buttonStatus !== expectedStatus) {
-    throw new Error(`Status tombol tidak sesuai. Ekspektasi: ${expectedStatus}, Aktual: ${mockState.buttonStatus}`);
-  }
-  return true;
+Then('status laporan {int} diubah menjadi {string} di tabel {string}', async function (id, status, table) {
+  await expect.poll(() => this.writes.find((w) => w.table === table && w.method === 'PATCH' && w.id === id))
+    .toBeTruthy();
+  const patch = this.writes.find((w) => w.table === table && w.method === 'PATCH' && w.id === id);
+  assert.equal(patch.body.status, status);
 });
 
-Then('Sistem menyimpan record baru ke tabel {string} dengan status {string}', function (tableName, expectedStatus) {
-  const lastRecord = mockState.dbRecords[mockState.dbRecords.length - 1];
-  if (!lastRecord || lastRecord.status !== expectedStatus) {
-    throw new Error(`Record tidak tersimpan dengan status ${expectedStatus} di tabel ${tableName}`);
-  }
-  return true;
+Then('laporan {int} dihapus dari tabel {string}', async function (id, table) {
+  await expect.poll(() => this.writes.some((w) => w.table === table && w.method === 'DELETE' && w.id === id))
+    .toBe(true);
 });
 
-Then(/^Pengguna diarahkan ke halaman hasil indikasi \("([^"]+)"\)$/, function (expectedPathPattern) {
-  const expectedPath = expectedPathPattern.replace('{id}', mockState.currentReport.id);
-  if (mockState.redirectUrl !== expectedPath) {
-    throw new Error(`Redirect URL tidak sesuai. Ekspektasi: ${expectedPath}, Aktual: ${mockState.redirectUrl}`);
-  }
-  return true;
-});
-
-// --- SCENARIO 3: Scan dengan Bukti Gambar saja ---
-When(/^Pengguna memilih file gambar "([^"]+)" \(ukuran < 5MB\)$/, function (fileName) {
-  mockState.file = fileName;
-  return true;
-});
-
-Then('Sistem mengunggah file gambar ke Supabase Storage bucket {string}', function (bucketName) {
-  if (bucketName !== 'bukti-analisis' || !mockState.file) {
-    throw new Error(`Gagal mengunggah file ke bucket ${bucketName}`);
-  }
-  return true;
-});
-
-Then('Sistem menyimpan URL public gambar ke kolom {string} di tabel {string}', function (columnName, tableName) {
-  const lastRecord = mockState.dbRecords[mockState.dbRecords.length - 1];
-  if (!lastRecord || !lastRecord[columnName]) {
-    throw new Error(`Public URL tidak tersimpan di kolom ${columnName} pada tabel ${tableName}`);
-  }
-  return true;
-});
-
-// --- SCENARIO 4: Menampilkan halaman hasil indikasi ---
-Given('Ada data laporan di database dengan ID {string} dan status {string}', function (reportId, status) {
-  mockState.currentReport = {
-    id: reportId,
-    url_situs: 'https://slotgacor-angker77.pages.dev',
-    tingkat_risiko: 'HIGH RISK',
-    skor_probabilitas: 95,
-    status: status,
-  };
-  return true;
-});
-
-When('Pengguna membuka halaman hasil indikasi {string}', function (fullPath) {
-  mockState.redirectUrl = fullPath;
-  return true;
-});
-
-Then('Sistem mengambil data laporan ID {string} dari Supabase', function (reportId) {
-  if (!mockState.currentReport || mockState.currentReport.id !== reportId) {
-    throw new Error(`Data laporan ID ${reportId} tidak ditemukan di Supabase.`);
-  }
-  return true;
-});
-
-Then('Halaman menampilkan ID Laporan {string}', function (expectedIdDisplay) {
-  const formattedId = `ID-${mockState.currentReport.id}`;
-  if (formattedId !== expectedIdDisplay) {
-    throw new Error(`Tampilan ID Laporan salah. Ekspektasi: ${expectedIdDisplay}, Aktual: ${formattedId}`);
-  }
-  return true;
-});
-
-Then('Halaman menampilkan status analisis {string}', function (expectedStatus) {
-  if (mockState.currentReport.status !== expectedStatus) {
-    throw new Error(`Status analisis tidak cocok. Ekspektasi: ${expectedStatus}, Aktual: ${mockState.currentReport.status}`);
-  }
-  return true;
-});
-
-// --- SCENARIO 5: Save to History & Alert Admin ---
-Given('Pengguna berada di halaman hasil indikasi untuk laporan ID {string} berstatus {string}', function (reportId, status) {
-  mockState.currentReport = {
-    id: reportId,
-    status: status,
-  };
-  return true;
-});
-
-Then('Sistem meng-update kolom status laporan ID {string} menjadi {string} di tabel {string}', function (reportId, newStatus, tableName) {
-  if (mockState.currentReport.id === reportId) {
-    mockState.currentReport.status = newStatus;
-    mockState.notification = `Status berhasil diubah jadi ${newStatus}!`;
-  }
-  return true;
-});
-
-Then('Sistem menampilkan notifikasi sukses {string}', function (expectedNotification) {
-  if (mockState.notification !== expectedNotification) {
-    throw new Error(`Notifikasi tidak cocok. Ekspektasi: ${expectedNotification}, Aktual: ${mockState.notification}`);
-  }
-  return true;
-});
-
-Then('Tampilan UI memperbarui status laporan menjadi {string}', function (expectedStatus) {
-  if (mockState.currentReport.status !== expectedStatus) {
-    throw new Error(`Tampilan UI status gagal diperbarui ke ${expectedStatus}`);
-  }
-  return true;
-});
-
-// --- SCENARIO 6: Discard Analysis ---
-Given('Pengguna berada di halaman hasil indikasi untuk laporan ID {string}', function (reportId) {
-  mockState.currentReport = { id: reportId, status: 'DRAFT' };
-  return true;
-});
-
-Then('Sistem menghapus record laporan ID {string} dari tabel {string}', function (reportId, tableName) {
-  mockState.currentReport = null;
-  return true;
-});
-
-Then(/^Pengguna diarahkan kembali ke halaman utama form \("([^"]+)"\)$/, function (mainPath) {
-  mockState.redirectUrl = mainPath;
-  return true;
+Then('pengguna diarahkan kembali ke halaman form {string}', async function (path) {
+  await this.page.waitForURL((url) => url.pathname === path, { timeout: 60000 });
 });
