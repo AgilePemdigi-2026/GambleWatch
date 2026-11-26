@@ -1,0 +1,15 @@
+# Paket untuk MENJALANKAN API deteksi (Dockerfile.api).
+# Lebih ramping dari requirements.txt: tanpa torch/transformers (CLIP opsional; indeks
+# referensi data/reference_index.npz hanya berisi pHash) dan tanpa alat dev/testing.
+fastapi==0.139.0
+uvicorn==0.50.1
+python-multipart==0.0.34
+pydantic==2.13.4
+numpy==2.5.0
+Pillow==12.2.0
+opencv-python-headless==5.0.0.93
+ImageHash==4.3.2
+pytesseract==0.3.13
+rapidfuzz==3.14.6
+supabase==2.34.1
+playwright==1.65.2

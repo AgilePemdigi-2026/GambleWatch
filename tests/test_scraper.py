@@ -129,6 +129,37 @@ def test_fetch_rejects_private_url_before_opening_browser():
     assert fetcher._browser is None   # browser tidak pernah dijalankan
 
 
+def test_failed_browser_launch_can_be_retried(monkeypatch):
+    """Chromium gagal dibuka sekali (mis. belum ter-install) tidak boleh merusak start() berikutnya."""
+    pytest.importorskip("playwright")
+    from playwright.sync_api import BrowserType
+
+    real_launch = BrowserType.launch
+    calls = {"n": 0}
+
+    def flaky_launch(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("Executable doesn't exist")
+        return real_launch(self, *args, **kwargs)
+
+    monkeypatch.setattr(BrowserType, "launch", flaky_launch)
+    fetcher = PageFetcher(FetchConfig())
+    with pytest.raises(RuntimeError):
+        fetcher.start()
+    assert fetcher._playwright is None   # Playwright yang setengah jalan sudah dihentikan
+    try:
+        fetcher.start()
+    except Exception as exc:  # Chromium memang tidak tersedia di mesin ini
+        if "Sync API inside the asyncio loop" in str(exc):
+            raise
+        pytest.skip(f"Chromium Playwright tidak tersedia: {exc}")
+    try:
+        assert fetcher._browser is not None
+    finally:
+        fetcher.close()
+
+
 def test_guard_blocks_private_subresource():
     resolver = fake_resolver({"situs.test": ["93.184.216.34"], "internal.test": ["10.0.0.2"]})
     fetcher = PageFetcher(FetchConfig(resolver=resolver))

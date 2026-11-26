@@ -130,7 +130,13 @@ class PageFetcher:
             return
         from playwright.sync_api import sync_playwright
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=self.config.headless)
+        try:
+            self._browser = self._playwright.chromium.launch(headless=self.config.headless)
+        except Exception:
+            # Hentikan Playwright yang sudah jalan; kalau dibiarkan, start() berikutnya di
+            # thread yang sama gagal dengan "Sync API inside the asyncio loop".
+            self.close()
+            raise
 
     def close(self) -> None:
         if self._browser:
