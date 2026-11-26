@@ -35,6 +35,10 @@ function riskLevel(value: string | null | undefined): 'high' | 'medium' | 'low' 
   return 'low';
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const monthKey = (year: number, month: number) => `${year}-${month}`;
+
 interface PatternItem {
   id: string;
   patternName: string;
@@ -51,15 +55,14 @@ export default function EarlyWarningPage() {
   const [timeRange, setTimeRange] = useState<'thisMonth' | 'sixMonths'>('sixMonths');
   const [loading, setLoading] = useState(true);
 
-  // Bulan berjalan (0-11); diisi di browser setelah data dimuat agar HTML server dan browser sama
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(10);
+  // Bulan berjalan; diisi di browser setelah data dimuat agar HTML server dan browser sama
+  const [today, setToday] = useState({ year: 2026, month: 10 });
 
   const [allAlerts, setAllAlerts] = useState<AlertDomain[]>([]);
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
   
-  const [monthlyCounts, setMonthlyCounts] = useState<{ [key: number]: number }>({
-    5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0
-  });
+  // Jumlah laporan per bulan, kunci "tahun-bulan" (bulan 0-11)
+  const [monthlyCounts, setMonthlyCounts] = useState<Record<string, number>>({});
 
   const supabase = createClient();
 
@@ -73,7 +76,8 @@ export default function EarlyWarningPage() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setCurrentMonthIndex(new Date().getMonth());
+        const now = new Date();
+        setToday({ year: now.getFullYear(), month: now.getMonth() });
 
         if (records && records.length > 0) {
           const icons = [AlertTriangle, UserPlus, CreditCard, Clock];
@@ -110,13 +114,12 @@ export default function EarlyWarningPage() {
           });
           setPatterns(mappedPatterns);
 
-          const counts: { [key: number]: number } = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+          const counts: Record<string, number> = {};
           records.forEach((row) => {
             if (row.created_at) {
-              const monthIndex = new Date(row.created_at).getMonth();
-              if (monthIndex >= 5 && monthIndex <= 10) {
-                counts[monthIndex] = (counts[monthIndex] || 0) + 1;
-              }
+              const d = new Date(row.created_at);
+              const key = monthKey(d.getFullYear(), d.getMonth());
+              counts[key] = (counts[key] || 0) + 1;
             }
           });
           setMonthlyCounts(counts);
@@ -158,23 +161,25 @@ export default function EarlyWarningPage() {
     (p) => p.severity === 'Kritis' || p.severity === 'Peringatan'
   ).length;
 
-  const monthListEWR = timeRange === 'thisMonth' 
-    ? [{ name: 'Nov', index: currentMonthIndex >= 5 && currentMonthIndex <= 10 ? currentMonthIndex : 10 }]
-    : [
-        { name: 'Jun', index: 5 },
-        { name: 'Jul', index: 6 },
-        { name: 'Agu', index: 7 },
-        { name: 'Sep', index: 8 },
-        { name: 'Okt', index: 9 },
-        { name: 'Nov', index: 10 },
-      ];
+  // 6 bulan terakhir sampai bulan berjalan
+  const lastSixMonths = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.year, today.month - 5 + i, 1);
+    return { name: MONTHS[d.getMonth()], month: d.getMonth(), year: d.getFullYear(), key: monthKey(d.getFullYear(), d.getMonth()) };
+  });
+  const first = lastSixMonths[0];
+  const last = lastSixMonths[5];
+  const sixMonthLabel = first.year === last.year
+    ? `${MONTHS_FULL[first.month]} – ${MONTHS_FULL[last.month]} ${last.year}`
+    : `${MONTHS_FULL[first.month]} ${first.year} – ${MONTHS_FULL[last.month]} ${last.year}`;
+
+  const monthListEWR = timeRange === 'thisMonth' ? [last] : lastSixMonths;
 
   const rawChartPoints = monthListEWR.map((m, idx) => {
     const xStep = timeRange === 'thisMonth' ? 0 : 140;
     const startX = timeRange === 'thisMonth' ? 400 : 50;
     return {
       x: startX + idx * xStep,
-      val: monthlyCounts[m.index] || 0,
+      val: monthlyCounts[m.key] || 0,
       month: m.name,
     };
   });
@@ -284,7 +289,7 @@ export default function EarlyWarningPage() {
                   Tren Indikasi Sepanjang Waktu
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Pantauan fluktuasi skor anomali sinyal peringatan dini ({timeRange === 'thisMonth' ? 'Bulan Ini' : 'Juni – November 2026'})
+                  Pantauan fluktuasi skor anomali sinyal peringatan dini ({timeRange === 'thisMonth' ? 'Bulan Ini' : sixMonthLabel})
                 </p>
               </div>
 

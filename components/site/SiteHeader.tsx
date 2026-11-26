@@ -3,7 +3,7 @@ import Link from "next/link";
 
 const NAV_LINKS = [
   { href: "/", label: "home" },
-  { href: "/gambling-analysis", label: "gambling analysis" },
+  { href: "/form-gamblin-analysis", label: "gambling analysis" },
   { href: "/feedback", label: "feedback" },
 ];
 
