@@ -292,3 +292,65 @@ def test_blank_screenshot_never_matches(tmp_path):
     Image.new("RGB", (640, 480), "white").save(blank, format="PNG")
     result = VisualSimilarityDetector(index_path=path).detect(blank.getvalue())
     assert result.label == "No Visual Match" and result.score == 0.0
+
+
+# --- Pencocokan header: banner di bawahnya boleh berganti --------------------------------
+
+def make_gambling_page(banner_seed: int) -> Image.Image:
+    """Header + menu tetap, banner besar di bawahnya berganti (carousel)."""
+    import random
+    rng = random.Random(banner_seed)
+    image = Image.new("RGB", (1000, 650), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 1000, 120), fill="midnightblue")          # header situs
+    for i in range(8):                                               # ikon menu
+        draw.ellipse((30 + i * 120, 30, 90 + i * 120, 90), fill=("gold", "crimson")[i % 2])
+    for _ in range(25):                                              # banner acak
+        x, y = rng.randrange(0, 900), rng.randrange(130, 600)
+        draw.rectangle((x, y, x + rng.randrange(40, 300), y + rng.randrange(30, 200)),
+                       fill=(rng.randrange(256), rng.randrange(256), rng.randrange(256)))
+    return image
+
+
+def _png(image: Image.Image) -> bytes:
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_gambling_site_matches_by_header_when_banner_changes(tmp_path):
+    index = ReferenceIndex()
+    index.add(make_gambling_page(1), {"id": "zeus", "type": "situs_judi"})
+    path = tmp_path / "index.npz"
+    index.save(path)
+    result = VisualSimilarityDetector(index_path=path).detect(_png(make_gambling_page(2)))
+    assert result.evidence["method"] == "phash_header"
+    assert result.evidence["matched"] and result.score >= 0.8
+
+
+def test_platform_spam_reference_is_not_matched_by_header(tmp_path):
+    # Spam judi di platform umum: header-nya milik platform, jangan dicocokkan
+    index = ReferenceIndex()
+    index.add(make_gambling_page(1), {"id": "spam-di-platform"})
+    path = tmp_path / "index.npz"
+    index.save(path)
+    result = VisualSimilarityDetector(index_path=path).detect(_png(make_gambling_page(2)))
+    assert not result.evidence["matched"] and result.score == 0.0
+
+
+def test_header_hashes_survive_save_and_old_index_still_loads(tmp_path):
+    import numpy as np
+    index = ReferenceIndex()
+    index.add(make_gambling_page(1), {"id": "zeus", "type": "situs_judi"})
+    index.add(make_site_screenshot(0), {"id": "site-a"})
+    path = tmp_path / "index.npz"
+    index.save(path)
+    loaded = ReferenceIndex.load(path)
+    assert loaded.header_mask.tolist() == [True, False]
+    assert (loaded.header_phashes == index.header_phashes).all()
+
+    old = tmp_path / "lama.npz"   # indeks lama tanpa array header
+    np.savez_compressed(old, phashes=index.phashes, metadata=np.array("[{}, {}]"),
+                        model_name=np.array(""))
+    legacy = ReferenceIndex.load(old)
+    assert legacy.header_mask.tolist() == [False, False]
