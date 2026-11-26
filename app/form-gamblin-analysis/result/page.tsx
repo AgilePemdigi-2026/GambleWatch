@@ -185,7 +185,15 @@ function ResultContent() {
 
   const urlPattern = data?.url_pattern_analysis || (isPending ? 'Memproses...' : 'Clean / No Pattern');
   const visualSim = data?.visual_similarity || (isPending ? 'Memproses...' : '00% Match');
-  const ocrStatus = data?.ocr_flagged ? 'OCR Flagged' : (isPending ? 'Memproses...' : 'Clean / Clear');
+  // OCR yang tidak berjalan (halaman gagal dibuka, tanpa gambar) bukan berarti bersih
+  const ocrModul = data?.bukti_deteksi?.modul?.ocr;
+  const ocrStatus = data?.ocr_flagged
+    ? 'OCR Flagged'
+    : isPending
+      ? 'Memproses...'
+      : ocrModul && ocrModul.status !== 'ok'
+        ? 'Tidak dianalisis (tidak ada gambar halaman yang bisa dibaca)'
+        : 'Clean / Clear';
   const keywords = data?.keywords_found || (isPending ? 'Memproses...' : 'Keywords Found: None');
 
   // Bukti dari isi halaman yang dibuka mesin deteksi (laporan_analisis.bukti_deteksi)

@@ -10,7 +10,8 @@ import numpy as np
 
 from detection_engine.config.detection_config import config
 from detection_engine.detectors.det02_visual_similarity.reference_index import (
-    HASH_AVAILABLE, ClipEmbedder, ReferenceIndex, compute_phash_bits, is_low_information,
+    HASH_AVAILABLE, ClipEmbedder, ReferenceIndex, compute_phash_bits, header_band,
+    is_low_information,
 )
 from detection_engine.models.detection_models import (
     DetectionResult, DetectionStatus, DetectorError, DetectorType,
@@ -23,6 +24,9 @@ if HASH_AVAILABLE:
 # (rescaled, recompressed, lightly edited) differ by only a few bits, while
 # unrelated images differ by ~32, so 20 leaves a wide margin.
 PHASH_MAX_DISTANCE = 20
+# The header band is a smaller part of the page, so it must match more closely than the
+# whole screen (distance <= 4 instead of <= 6).
+HEADER_MATCH_THRESHOLD = 0.8
 
 
 class VisualSimilarityDetector:
@@ -30,6 +34,8 @@ class VisualSimilarityDetector:
 
     Score is the best match over all reference images:
     - pHash: `1 - hamming_distance / 20`, clipped to 0..1 (near-duplicates)
+    - pHash of the header band, only for references of a gambling site's own page
+      (banners below the header rotate; the header and menu do not)
     - CLIP cosine similarity, only if the index has embeddings and
       `use_clip=True` (semantically similar layouts)
     """
@@ -81,7 +87,8 @@ class VisualSimilarityDetector:
             self.logger.error("Visual similarity failed: %s", e)
             return self._failed("VISUAL_SIMILARITY_ERROR", str(e), start)
 
-        threshold = self.clip_threshold if method == "clip" else self.match_threshold
+        threshold = {"clip": self.clip_threshold,
+                     "phash_header": HEADER_MATCH_THRESHOLD}.get(method, self.match_threshold)
         matched = score >= threshold
         match_info = dict(index.metadata[best_idx])
         return DetectionResult(
@@ -135,6 +142,19 @@ class VisualSimilarityDetector:
         similarities = np.clip(1.0 - distances / PHASH_MAX_DISTANCE, 0.0, 1.0)
         best_idx = int(np.argmax(similarities))
         score, method = float(similarities[best_idx]), "phash"
+
+        if index.header_mask.any():
+            band = header_band(image)
+            if not is_low_information(band):
+                header_distances = np.count_nonzero(
+                    index.header_phashes != compute_phash_bits(band), axis=1)
+                header_sim = np.where(
+                    index.header_mask,
+                    np.clip(1.0 - header_distances / PHASH_MAX_DISTANCE, 0.0, 1.0), 0.0)
+                header_idx = int(np.argmax(header_sim))
+                header_score = float(header_sim[header_idx])
+                if header_score >= HEADER_MATCH_THRESHOLD and header_score > score:
+                    best_idx, score, method = header_idx, header_score, "phash_header"
 
         if self.use_clip and index.embeddings is not None:
             clip_scores = index.embeddings @ self._get_embedder(index).embed(image)

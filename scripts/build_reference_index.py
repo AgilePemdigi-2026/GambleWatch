@@ -27,9 +27,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build reference index for visual similarity")
     parser.add_argument("--image-dir", required=True,
                         help="Directory with reference screenshots (JPG/PNG)")
-    parser.add_argument("--metadata",
+    parser.add_argument("--metadata", default="data/reference_metadata.json",
                         help="JSON file mapping filename to extra fields "
-                             "(type, category, risk_level)")
+                             "(type, category, risk_level). type=situs_judi: halaman situs "
+                             "judi sendiri, header-nya ikut dicocokkan (default: %(default)s)")
     parser.add_argument("--output", default=config.reference_index_path,
                         help="Output .npz path (default: %(default)s)")
     parser.add_argument("--clip", action="store_true",
@@ -67,7 +68,8 @@ def main() -> int:
         return 1
 
     index.save(args.output)
-    print(f"Indeks berisi {len(index)} gambar disimpan ke {args.output} ({len(skipped)} dilewati)")
+    print(f"Indeks berisi {len(index)} gambar disimpan ke {args.output} ({len(skipped)} dilewati, "
+          f"{int(index.header_mask.sum())} dengan pencocokan header)")
     return 0
 
 

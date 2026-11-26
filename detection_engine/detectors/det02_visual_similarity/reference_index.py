@@ -1,7 +1,13 @@
 """Reference index for DET-02 visual similarity.
 
 The index holds a perceptual hash (pHash, 64 bits) for every reference image
-of a known gambling site, and optionally a CLIP embedding. It is stored as a
+of a known gambling site, and optionally a CLIP embedding.
+
+Reference images whose metadata says `"type": "situs_judi"` (the gambling site's own
+page, not spam posted on a public platform) also get a pHash of the top band of the
+page: the header and menu. That band stays the same while banners and carousels below
+it rotate, so a fresh visit still matches. Spam on gitlab/gumroad/substack is left out,
+because its header is the platform's header and would match every page there. It is stored as a
 `.npz` file and loaded with `allow_pickle=False`, so loading an index can
 never execute code.
 """
@@ -40,6 +46,19 @@ def is_low_information(image: "Image.Image") -> bool:
     return float(gray.std()) < MIN_CONTRAST
 
 
+# Height of the top band (header + menu) as a fraction of the page WIDTH, so the band
+# covers the same part of the layout for every screenshot of the same width.
+HEADER_RATIO = 0.12
+# Only these references are compared by their header (see module docstring)
+HEADER_TYPES = {"situs_judi"}
+
+
+def header_band(image: "Image.Image") -> "Image.Image":
+    """Top band of the page: header and main menu."""
+    width, height = image.size
+    return image.crop((0, 0, width, max(1, min(height, int(width * HEADER_RATIO)))))
+
+
 def compute_phash_bits(image: "Image.Image") -> np.ndarray:
     """64-element uint8 array of the image's pHash bits."""
     return np.array(imagehash.phash(image.convert("RGB"), hash_size=8).hash,
@@ -53,6 +72,8 @@ class ReferenceIndex:
     metadata: List[Dict[str, Any]] = field(default_factory=list)
     embeddings: Optional[np.ndarray] = None
     model_name: Optional[str] = None
+    header_phashes: np.ndarray = field(default_factory=lambda: np.zeros((0, 64), dtype=np.uint8))
+    header_mask: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
 
     def __len__(self) -> int:
         return len(self.metadata)
@@ -64,6 +85,8 @@ class ReferenceIndex:
             "phashes": self.phashes,
             "metadata": np.array(json.dumps(self.metadata, ensure_ascii=False)),
             "model_name": np.array(self.model_name or ""),
+            "header_phashes": self.header_phashes,
+            "header_mask": self.header_mask,
         }
         if self.embeddings is not None:
             arrays["embeddings"] = self.embeddings
@@ -72,16 +95,27 @@ class ReferenceIndex:
     @classmethod
     def load(cls, path: Union[str, Path]) -> "ReferenceIndex":
         with np.load(Path(path), allow_pickle=False) as data:
+            phashes = data["phashes"]
+            has_header = "header_phashes" in data.files   # indeks lama: tanpa header
             return cls(
-                phashes=data["phashes"],
+                phashes=phashes,
                 metadata=json.loads(str(data["metadata"])),
                 embeddings=data["embeddings"] if "embeddings" in data.files else None,
                 model_name=str(data["model_name"]) or None,
+                header_phashes=(data["header_phashes"] if has_header
+                                else np.zeros_like(phashes)),
+                header_mask=(data["header_mask"].astype(bool) if has_header
+                             else np.zeros(len(phashes), dtype=bool)),
             )
 
     def add(self, image: "Image.Image", metadata: Dict[str, Any],
             embedding: Optional[np.ndarray] = None) -> None:
         self.phashes = np.vstack([self.phashes, compute_phash_bits(image)])
+        band = header_band(image)
+        use_header = (metadata.get("type") in HEADER_TYPES
+                      and not is_low_information(band))
+        self.header_phashes = np.vstack([self.header_phashes, compute_phash_bits(band)])
+        self.header_mask = np.append(self.header_mask, use_header)
         self.metadata.append(metadata)
         if embedding is not None:
             vector = embedding[np.newaxis, :]
