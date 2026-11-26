@@ -4,6 +4,8 @@
 // Prasyarat:     web Next.js di http://localhost:3000 (npm run dev) dan, untuk modul DET,
 //                API deteksi di http://127.0.0.1:8001
 //                (python -m uvicorn detection_engine.api.main:app --port 8001).
+//                Skenario OCR (anl_module) butuh Tesseract OCR terpasang di mesin API deteksi
+//                (Windows: winget install UB-Mannheim.TesseractOCR, plus paket bahasa "ind").
 // Variabel opsional: BASE_URL, DETECTION_API_URL, HEADED=1 (tampilkan browser).
 //
 // Halaman admin diuji dengan respons Supabase yang DISIMULASIKAN (page.route), sehingga
@@ -37,8 +39,7 @@ class GambleWatchWorld extends World {
     this.writes = []; // permintaan tulis ke Supabase yang tertangkap
   }
 
-  // Halaman dibuat saat pertama dipakai, jadi modul lama yang tidak membuka
-  // browser (step "return true") tidak ikut membuat tab.
+  // Membuat context + halaman sekali per skenario (dipanggil di hook Before).
   async getPage() {
     if (!this.page) {
       this.context = await browser.newContext({
@@ -54,8 +55,11 @@ class GambleWatchWorld extends World {
 
 setWorldConstructor(GambleWatchWorld);
 
-Before(function () {
+// Halaman disiapkan di awal setiap skenario agar step yang memakai `this.page`
+// langsung (contact support, kebijakan privasi, landing page, dll.) bisa jalan.
+Before(async function () {
   this.writes = [];
+  await this.getPage();
 });
 
 After(async function () {
@@ -130,15 +134,21 @@ async function mockSupabaseTable(world, table, rows) {
   await page.route(`**/rest/v1/${table}**`, async (route) => {
     const request = route.request();
     const method = request.method();
+    const idMatch = /[?&]id=eq\.(\d+)/.exec(request.url());
     if (method !== 'GET') {
       const body = request.postDataJSON ? request.postDataJSON() : null;
-      const saved = { id: 999001, ...(Array.isArray(body) ? body[0] : body) };
-      world.writes.push({ table, method, body: saved });
+      const data = Array.isArray(body) ? body[0] : body;
+      // PATCH/DELETE dengan id=eq.X mengubah/menghapus baris itu; selain itu baris baru
+      const target = idMatch ? rows.find((r) => String(r.id) === idMatch[1]) : null;
+      let saved;
+      if (method === 'PATCH' && target) saved = Object.assign(target, data);
+      else if (method === 'DELETE' && target) saved = rows.splice(rows.indexOf(target), 1)[0];
+      else saved = { id: 999001, ...data };
+      world.writes.push({ table, method, id: idMatch ? Number(idMatch[1]) : null, body: data ?? saved });
       if (method === 'POST') rows.push(saved);
       const wantsObject = (request.headers().accept || '').includes('vnd.pgrst.object');
       return route.fulfill({ status: 201, json: wantsObject ? saved : [saved] });
     }
-    const idMatch = /[?&]id=eq\.(\d+)/.exec(request.url());
     if (idMatch) {
       const found = rows.find((r) => String(r.id) === idMatch[1]);
       return found

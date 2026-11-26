@@ -1,14 +1,32 @@
 Feature: Admin Dashboard Module (ADM)
+  Sebagai Admin Komdigi
+  Saya ingin melihat ringkasan laporan dan tren deteksi di dashboard
+  Agar saya tahu laporan mana yang perlu segera ditindaklanjuti
 
-  Scenario: Menampilkan statistik laporan real-time dari Supabase
-    Given Admin membuka halaman dashboard ("/admin")
-    When Sistem berhasil memuat data statistik dari database Supabase
-    Then Kartu "Total laporan" harus menampilkan jumlah laporan riil
-    And Kartu "Situs berisiko tinggi" harus menampilkan jumlah situs risiko tinggi
-    And Kartu "Menunggu tinjauan" harus menampilkan jumlah laporan status pending
-    And Grafik "Tren deteksi" harus menampilkan data deteksi bulanan
+  Background:
+    Given data laporan untuk dashboard admin disimulasikan:
+      | id  | url                            | risiko | skor | status                        | waktu      |
+      | 201 | https://slot-gacor-777.example | HIGH   | 92   | Menunggu Verifikasi (Pending) | 1 jam lalu |
+      | 202 | https://togel-hoki.example     | HIGH   | 88   | Blocked                       | 1 jam lalu |
+      | 203 | https://casino-maxwin.example  | MEDIUM | 55   | SUBMITTED                     | 1 jam lalu |
+      | 204 | https://toko-buku.example      | LOW    | 5    | DRAFT                         | 1 jam lalu |
 
-  Scenario: Navigasi cepat dari dashboard admin
-    Given Admin berada di halaman dashboard ("/admin")
-    When Admin mengklik menu "Hasil klasifikasi" pada section Akses cepat
-    Then Halaman harus berpindah ke rute ("/admin/classification")
+  Scenario: Menampilkan statistik laporan dari Supabase
+    When admin membuka halaman "/admin"
+    Then kartu "Total laporan" menampilkan angka "4"
+    And kartu "Situs berisiko tinggi" menampilkan angka "2"
+    And kartu "Menunggu tinjauan" menampilkan angka "2"
+    And kartu "Situs diblokir" menampilkan angka "1"
+    And grafik "Tren deteksi" menampilkan 3 situs terindikasi pada bulan ini
+    And halaman menampilkan teks "Terdeteksi 2 laporan berisiko tinggi dalam 24 jam terakhir"
+
+  Scenario Outline: Navigasi cepat dari dashboard admin
+    When admin membuka halaman "/admin"
+    And admin mengklik menu "<menu>" pada section Akses cepat
+    Then halaman berpindah ke rute "<rute>"
+
+    Examples:
+      | menu              | rute                     |
+      | Hasil klasifikasi | /admin/hasil-klasifikasi |
+      | Peringatan dini   | /admin/early-warning     |
+      | Database kata kunci | /admin/keywords        |

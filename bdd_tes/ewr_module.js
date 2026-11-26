@@ -1,215 +1,130 @@
+// Step EWR: halaman peringatan dini (/admin/early-warning) dan detail sinyal, dengan
+// tabel laporan_analisis yang disimulasikan.
 const { Given, When, Then } = require('@cucumber/cucumber');
-const assert = require('assert');
+const { expect } = require('@playwright/test');
+const { buildLaporan, mockSupabaseTable } = require('./support_playwright');
 
-// State simulasi penyimpanan data internal Cucumber untuk pengujian
-let ewrContext = {
-  currentPath: '',
-  searchTerm: '',
-  timeRange: 'sixMonths',
-  activeFilterTab: 'active',
-  signalsList: [
-    {
-      id: '127',
-      domain: 'https://slotgacor-angker77.pages.dev',
-      riskLevel: 'HIGH RISK',
-      anomalyScore: 95,
-      category: 'Keywords Found: slot, gacor, angker77',
-      detectionResult: "High Risk (95%): Gambling keyword in domain: 'slot, gacor, angker77'",
-      triggeredTime: '11/11/2026, 22:13:51',
-      percentage: '+42%',
-      severity: 'Kritis',
-      description: 'High Risk (95%): Gambling keyword in domain: \'slot, gacor, angker77\'',
-    },
-    {
-      id: '125',
-      domain: 'https://judi-online.zxy',
-      riskLevel: 'MEDIUM RISK',
-      anomalyScore: 56,
-      category: 'Keywords Found: judi',
-      detectionResult: "Medium Risk (56%): Gambling keyword in domain: 'judi'",
-      triggeredTime: '11/11/2026, 20:10:00',
-      percentage: '+18%',
-      severity: 'Peringatan',
-      description: 'Indikasi keyword perjudian tingkat sedang.',
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+Given('data sinyal peringatan dini disimulasikan:', async function (table) {
+  const rows = table.hashes().map((row, i) => {
+    const laporan = buildLaporan(row, i);
+    if (row.temuan) laporan.keywords_found = `Keywords Found: ${row.temuan.split(':')[1].trim()}`;
+    return laporan;
+  });
+  await mockSupabaseTable(this, 'laporan_analisis', rows);
+});
+
+// --- Kartu sinyal ---
+
+// Tiap kartu sinyal: div berisi nama domain (span.font-mono) dan badge persentase
+function signalCards(page) {
+  return page.locator('div.grid > div.bg-\\[\\#FAF5EE\\]', { has: page.locator('span.font-mono') });
+}
+
+Then('halaman EWR menampilkan {int} kartu sinyal anomali', async function (count) {
+  await expect(signalCards(this.page)).toHaveCount(count, { timeout: 30000 });
+});
+
+Then('kartu domain {string} menampilkan peningkatan risiko {string}', async function (domain, percentage) {
+  const card = signalCards(this.page).filter({ hasText: domain });
+  await expect(card).toContainText(percentage, { timeout: 30000 });
+});
+
+When('administrator memasukkan kata kunci {string} pada kolom pencarian', async function (keyword) {
+  await this.page.getByPlaceholder('Cari domain atau nama pola...').fill(keyword);
+});
+
+// --- Tabel pola terindikasi ---
+
+function patternRows(page) {
+  return page.locator('table tbody tr', { has: page.getByRole('link', { name: 'Lihat Detail' }) });
+}
+
+Then('tabel pola terindikasi hanya menampilkan domain yang mengandung {string}', async function (keyword) {
+  const rows = patternRows(this.page);
+  await expect(rows.first()).toBeVisible({ timeout: 30000 });
+  for (const text of await rows.allInnerTexts()) {
+    if (!text.toLowerCase().includes(keyword.toLowerCase())) {
+      throw new Error(`Baris tidak mengandung "${keyword}": ${text}`);
     }
-  ],
-  selectedSignal: null,
-  externalLinkOpened: '',
-};
-
-// ==================== BACKGROUND & LISTING EWR ====================
-
-Given(/^Administrator telah masuk ke sistem dan berada di halaman "Analisis Peringatan Dini" \("([^"]+)"\)$/, function (path) {
-  ewrContext.currentPath = path;
-  ewrContext.searchTerm = '';
-  ewrContext.timeRange = 'sixMonths';
-  ewrContext.activeFilterTab = 'active';
-  return true;
-});
-
-Then('Halaman EWR menampilkan 4 kartu sinyal anomali domain terindikasi', function () {
-  assert(ewrContext.signalsList.length > 0, 'Sinyal anomali tidak dimuat di halaman.');
-  return true;
-});
-
-Then('Setiap kartu menampilkan nama domain, persentase peningkatan risiko, dan deskripsi indikasi', function () {
-  const card = ewrContext.signalsList[0];
-  assert(card.domain && card.percentage && card.description, 'Atribut kartu sinyal tidak lengkap.');
-  return true;
-});
-
-Then('Kartu dengan risiko tinggi menggunakan badge warna merah {string}', function (expectedBadge) {
-  const highRiskCard = ewrContext.signalsList.find(s => s.riskLevel === 'HIGH RISK');
-  assert.strictEqual(highRiskCard.riskLevel, expectedBadge);
-  return true;
-});
-
-When('Administrator memasukkan kata kunci {string} pada kolom pencarian', function (query) {
-  ewrContext.searchTerm = query;
-  return true;
-});
-
-Then('Sistem menyaring kartu dan tabel pola terindikasi', function () {
-  return true;
-});
-
-Then('Tampilan hanya menyajikan domain yang mengandung kata {string}', function (query) {
-  const filtered = ewrContext.signalsList.filter(s => s.domain.toLowerCase().includes(query.toLowerCase()));
-  assert(filtered.length > 0, `Tidak ada domain yang cocok dengan pencarian: ${query}`);
-  return true;
-});
-
-When('Administrator mengubah filter rentang waktu grafik menjadi {string}', function (rangeOption) {
-  if (rangeOption === 'Bulan Ini') {
-    ewrContext.timeRange = 'thisMonth';
-  } else if (rangeOption === '6 Bulan Terakhir') {
-    ewrContext.timeRange = 'sixMonths';
   }
-  return true;
 });
 
-Then('Grafik SVG tren indikasi memperbarui titik koordinat data untuk bulan berjalan', function () {
-  assert.strictEqual(ewrContext.timeRange, 'thisMonth');
-  return true;
-});
-
-Then('Keterangan rentang waktu grafik berubah menjadi {string}', function (expectedLabel) {
-  const label = ewrContext.timeRange === 'thisMonth' ? 'Bulan Ini' : 'Juni – November 2026';
-  assert.strictEqual(label, expectedLabel);
-  return true;
-});
-
-Then('Grafik SVG tren indikasi menampilkan pergerakan data dari bulan {string} hingga {string}', function (startMonth, endMonth) {
-  assert.strictEqual(ewrContext.timeRange, 'sixMonths');
-  return true;
-});
-
-When('Administrator menekan tombol filter {string}', function (filterName) {
-  if (filterName.includes('Aktif')) {
-    ewrContext.activeFilterTab = 'active';
+Then('tabel pola terindikasi menampilkan tingkat keparahan {string} dan {string}', async function (a, b) {
+  for (const severity of [a, b]) {
+    await expect(patternRows(this.page).filter({ hasText: severity }).first()).toBeVisible({ timeout: 30000 });
   }
-  return true;
 });
 
-Then('Tabel pola terindikasi hanya menampilkan data dengan tingkat keparahan {string} dan {string}', function (sev1, sev2) {
-  const activePatterns = ewrContext.signalsList.filter(s => s.severity === sev1 || s.severity === sev2);
-  assert(activePatterns.length > 0, 'Filter tingkat keparahan gagal disaring.');
-  return true;
+Then('tabel pola terindikasi menampilkan tingkat keparahan {string}', async function (severity) {
+  await expect(patternRows(this.page).filter({ hasText: severity }).first()).toBeVisible({ timeout: 30000 });
 });
 
-Then('Baris data dengan tingkat keparahan {string} tidak ditampilkan', function (ignoredSeverity) {
-  const hasIgnored = ewrContext.signalsList.some(s => s.severity === ignoredSeverity && ewrContext.activeFilterTab === 'active');
-  assert.strictEqual(hasIgnored, false, `Tingkat keparahan ${ignoredSeverity} masih muncul!`);
-  return true;
+Then('tabel pola terindikasi tidak menampilkan tingkat keparahan {string}', async function (severity) {
+  await expect(patternRows(this.page).first()).toBeVisible({ timeout: 30000 });
+  await expect(patternRows(this.page).filter({ hasText: severity })).toHaveCount(0);
 });
 
-// ==================== DETAIL SINYAL EWR ====================
-
-Given('Ada data sinyal di database Supabase dengan ID {string} untuk domain {string}', function (id, domain) {
-  ewrContext.selectedSignal = ewrContext.signalsList.find(s => s.id === id) || {
-    id,
-    domain,
-    riskLevel: 'HIGH RISK',
-    anomalyScore: 95,
-    category: 'Keywords Found: slot, gacor, angker77',
-    detectionResult: "High Risk (95%): Gambling keyword in domain: 'slot, gacor, angker77'",
-    triggeredTime: '11/11/2026, 22:13:51'
-  };
-  return true;
+When('administrator menekan tombol filter {string}', async function (label) {
+  await this.page.getByRole('button', { name: label }).click();
 });
 
-When('Administrator menekan tombol "Lihat Detail" pada baris sinyal ID {string}', function (id) {
-  ewrContext.currentPath = `/admin/early-warning/${id}`;
-  return true;
+When('administrator menekan tombol {string} pada baris domain {string}', async function (button, domain) {
+  await patternRows(this.page).filter({ hasText: domain }).getByRole('link', { name: button }).click();
 });
 
-Then(/^Pengguna diarahkan ke halaman rincian detail sinyal \("([^"]+)"\)$/, function (expectedPath) {
-  assert.strictEqual(ewrContext.currentPath, expectedPath);
-  return true;
+// --- Grafik tren ---
+
+When('administrator mengubah filter rentang waktu grafik menjadi {string}', async function (label) {
+  // Tunggu data termuat dulu agar klik tidak tertimpa render awal
+  await expect(patternRows(this.page).first()).toBeVisible({ timeout: 30000 });
+  await this.page.getByRole('button', { name: label, exact: true }).click();
 });
 
-Then('Halaman detail menampilkan nama domain {string}', function (expectedDomain) {
-  assert.strictEqual(ewrContext.selectedSignal.domain, expectedDomain);
-  return true;
+// Label bulan pada sumbu-x grafik (teks SVG dengan y=215)
+async function chartMonths(page) {
+  return page.locator('svg text[y="215"]').allTextContents();
+}
+
+Then('keterangan rentang waktu grafik berubah menjadi {string}', async function (label) {
+  await expect(this.page.getByText(`(${label})`)).toBeVisible();
 });
 
-Then('Halaman detail menampilkan ID Sinyal {string} dengan badge risiko {string}', function (expectedId, expectedRisk) {
-  assert.strictEqual(`#${ewrContext.selectedSignal.id}`, expectedId);
-  assert.strictEqual(ewrContext.selectedSignal.riskLevel, expectedRisk);
-  return true;
+Then('grafik tren indikasi hanya menampilkan bulan berjalan dengan nilai {int}', async function (value) {
+  await expect.poll(() => chartMonths(this.page)).toEqual([MONTHS[new Date().getMonth()]]);
+  await expect(this.page.locator('svg text[font-family], svg text.fill-white').first()).toHaveText(String(value));
 });
 
-Then('Section Rincian Sinyal menampilkan Kategori Pola Indikasi {string}', function (expectedCategory) {
-  assert.strictEqual(ewrContext.selectedSignal.category, expectedCategory);
-  return true;
+Then('grafik tren indikasi menampilkan 6 bulan terakhir yang diakhiri bulan berjalan', async function () {
+  const now = new Date();
+  const expected = Array.from({ length: 6 }, (_, i) => MONTHS[new Date(now.getFullYear(), now.getMonth() - 5 + i, 1).getMonth()]);
+  await expect.poll(() => chartMonths(this.page)).toEqual(expected);
 });
 
-Then('Section Rincian Sinyal menampilkan Hasil Deteksi {string}', function (expectedResult) {
-  assert.strictEqual(ewrContext.selectedSignal.detectionResult, expectedResult);
-  return true;
+Then('keterangan rentang waktu grafik menampilkan periode 6 bulan terakhir', async function () {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const label = first.getFullYear() === now.getFullYear()
+    ? `${MONTHS_FULL[first.getMonth()]} – ${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`
+    : `${MONTHS_FULL[first.getMonth()]} ${first.getFullYear()} – ${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`;
+  await expect(this.page.getByText(`(${label})`)).toBeVisible();
 });
 
-Then('Section Rincian Sinyal menampilkan Waktu Peringatan Terpicu {string}', function (expectedTime) {
-  assert.strictEqual(ewrContext.selectedSignal.triggeredTime, expectedTime);
-  return true;
+// --- Detail sinyal ---
+
+Then('skor sinyal anomali menampilkan {string}', async function (score) {
+  const card = this.page.locator('div', { has: this.page.getByRole('heading', { name: 'SKOR SINYAL ANOMALI RISK' }) }).last();
+  await expect(card.locator('span.text-5xl')).toHaveText(score, { timeout: 30000 });
 });
 
-Then('Card Skor Sinyal Anomali Risk menampilkan nilai {string}', function (expectedScore) {
-  const formattedScore = `${ewrContext.selectedSignal.anomalyScore}/100`;
-  assert.strictEqual(formattedScore, expectedScore);
-  return true;
+Then('tombol {string} mengarah ke {string} di tab baru', async function (name, href) {
+  const link = this.page.getByRole('link', { name });
+  await expect(link).toHaveAttribute('href', href, { timeout: 30000 });
+  await expect(link).toHaveAttribute('target', '_blank');
 });
 
-Then('Section Indikator Teknis menampilkan Evaluasi Risiko {string} dan Kategori Sistem {string}', function (expectedRisk, expectedCat) {
-  assert.strictEqual(ewrContext.selectedSignal.riskLevel, expectedRisk);
-  assert.strictEqual(ewrContext.selectedSignal.category, expectedCat);
-  return true;
-});
-
-// ==================== AKSI / ACTION BUTTONS ====================
-
-Given(/^Administrator berada di halaman rincian detail sinyal ID "([^"]+)" \("([^"]+)"\)$/, function (id, path) {
-  ewrContext.currentPath = path;
-  ewrContext.selectedSignal = ewrContext.signalsList.find(s => s.id === id);
-  return true;
-});
-
-When('Administrator menekan tombol "Inspeksi Situs"', function () {
-  ewrContext.externalLinkOpened = ewrContext.selectedSignal.domain;
-  return true;
-});
-
-Then('Sistem membuka URL situs {string} pada tab baru browser', function (expectedUrl) {
-  assert.strictEqual(ewrContext.externalLinkOpened, expectedUrl);
-  return true;
-});
-
-When('Administrator menekan tombol "Proses Pemblokiran ↗"', function () {
-  ewrContext.currentPath = `/admin/block-status/${ewrContext.selectedSignal.id}`;
-  return true;
-});
-
-Then(/^Pengguna diarahkan secara otomatis ke halaman status pemblokiran \("([^"]+)"\)$/, function (expectedPath) {
-  assert.strictEqual(ewrContext.currentPath, expectedPath);
-  return true;
+When('administrator menekan tombol {string}', async function (name) {
+  await this.page.getByRole('link', { name }).click({ timeout: 30000 });
 });

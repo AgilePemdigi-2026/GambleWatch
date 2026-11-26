@@ -89,7 +89,7 @@ export default function SignInMasyarakatPage() {
           <Link href="/" className="hover:text-[#a64b20]">
             HOME
           </Link>
-          <Link href="/gambling-analysis" className="hover:text-[#a64b20]">
+          <Link href="/form-gamblin-analysis" className="hover:text-[#a64b20]">
             GAMBLING ANALYSIS
           </Link>
           <Link href="/feedback" className="hover:text-[#a64b20]">
@@ -260,7 +260,7 @@ export default function SignInMasyarakatPage() {
             About Web
           </Link>
 
-          <Link href="/privacy-policy" className="hover:text-[#482b19]">
+          <Link href="/privacy" className="hover:text-[#482b19]">
             Privacy Policy
           </Link>
 
