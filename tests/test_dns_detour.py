@@ -36,6 +36,23 @@ def test_isp_nxdomain_but_public_dns_answers_counts_as_blocked():
     assert detour is not None and detour.isp_blocked
 
 
+def test_isp_answering_loopback_counts_as_blocked():
+    # Beberapa provider menjawab ::1 untuk domain yang diblokir
+    detour = find_dns_detour(
+        "www.ivoox.com",
+        system=lookup_table({"www.ivoox.com": (["::1", "202.3.218.137"], "www.ivoox.com")}),
+        public=lookup_table({"www.ivoox.com": ["77.73.84.19"]}))
+    assert detour is not None and detour.isp_blocked
+
+
+def test_private_answer_without_public_alternative_stays_unsafe(monkeypatch):
+    monkeypatch.setattr("detection_engine.scraper.fetcher.find_dns_detour", lambda host: None)
+    fetcher = PageFetcher(FetchConfig(public_dns=True))
+    monkeypatch.setattr(fetcher, "_dns_detour", lambda host: None)
+    outcome = fetcher.fetch("http://127.0.0.1:8080/")
+    assert outcome.failure_code == "UNSAFE_TARGET" and fetcher._browser is None
+
+
 def test_same_answer_needs_no_detour():
     assert find_dns_detour(
         "unair.ac.id",
