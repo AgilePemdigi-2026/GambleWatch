@@ -28,8 +28,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("GAMBLEWATCH_NO_ENV_FILE", "1")   # kata kunci lokal, tanpa Supabase
 
-FIELDS = ["url", "label", "status", "failure_code", "profile", "cloaking",
-          "indication", "score", "detik"]
+MODULES = {"s_url": "url_pattern", "s_visual": "visual_similarity",
+           "s_ocr": "ocr", "s_teks": "keyword_analysis"}
+FIELDS = ["url", "label", "status", "failure_code", "profile", "cloaking", "isp_blocked",
+          "indication", "score", *MODULES, "detik"]
 FLAGGED = {"Sedang", "Tinggi"}
 
 
@@ -81,8 +83,12 @@ def main() -> int:
                 "failure_code": scan.get("failure_code") or "",
                 "profile": scan.get("profile", ""),
                 "cloaking": scan.get("cloaking", False),
+                "isp_blocked": scan.get("isp_blocked", False),
                 "indication": body.get("indication", ""),
                 "score": round(body.get("overall_score", 0.0), 3),
+                # skor tiap modul, untuk analisis kontribusi modul (ablation)
+                **{column: round(((body.get("modules") or {}).get(key) or {}).get("score") or 0.0, 3)
+                   for column, key in MODULES.items()},
                 "detik": round(time.monotonic() - started, 1),
             }
             results.append(row)
@@ -116,6 +122,7 @@ def main() -> int:
     print("Terdeteksi lewat tampilan lain       :",
           dict(Counter(r["profile"] for r in results if r["profile"] not in ("", "desktop"))))
     print("Cloaking                             :", sum(bool(r["cloaking"]) for r in results))
+    print("Diblokir DNS provider, dibuka via DoH:", sum(bool(r["isp_blocked"]) for r in results))
     print(f"Rata-rata waktu per URL              : {sum(r['detik'] for r in results) / max(1, len(results)):.1f} detik")
     print(f"Hasil per URL: {out}")
     return 0

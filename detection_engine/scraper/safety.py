@@ -190,5 +190,8 @@ def find_dns_detour(host: str,
         return None
     if not public_addresses or set(system_addresses) & set(public_addresses):
         return None
-    blocked = system_failed or any(marker in canon.lower() for marker in BLOCK_MARKERS)
+    # Tanda pemblokiran: DNS sistem gagal, mengarah ke nama blokir, atau memberi alamat
+    # non-publik (beberapa provider menjawab ::1 / 127.0.0.1 untuk domain yang diblokir)
+    blocked = (system_failed or any(marker in canon.lower() for marker in BLOCK_MARKERS)
+               or any(not is_public_address(a) for a in system_addresses))
     return DnsDetour(addresses=public_addresses, isp_blocked=blocked)

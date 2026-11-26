@@ -204,20 +204,28 @@ class PageFetcher:
         return mapped
 
     def fetch(self, url: str, profile: str = "desktop") -> ScrapeOutcome:
-        system_failure: Optional[DnsFailure] = None
         try:
-            clean_url, _ = check_url(url, resolver=self.config.resolver,
-                                     allow_private=self.config.allow_private)
+            clean_url = normalize_url(url)   # skema/port/format yang tidak diizinkan
         except UnsafeTarget as exc:
             return _failed("UNSAFE_TARGET", str(exc))
-        except DnsFailure as exc:
-            clean_url, system_failure = normalize_url(url), exc
-
         host = (urlsplit(clean_url).hostname or "").lower()
+
+        # Masalah DNS sistem belum final: provider yang memblokir domain bisa menjawab
+        # "tidak ada" atau alamat non-publik (::1). Bila DNS publik memberi alamat publik,
+        # Chromium dibuka ke alamat itu saja, jadi tidak ada request ke jaringan internal.
+        system_problem: Optional[ScrapeOutcome] = None
+        try:
+            check_url(clean_url, resolver=self.config.resolver,
+                      allow_private=self.config.allow_private)
+        except UnsafeTarget as exc:
+            system_problem = _failed("UNSAFE_TARGET", str(exc))
+        except DnsFailure as exc:
+            system_problem = _failed("DNS", str(exc))
+
         detour = self._dns_detour(host)
         if detour is None:
-            if system_failure is not None:
-                return _failed("DNS", str(system_failure))
+            if system_problem is not None:
+                return system_problem
             self.start()
             assert self._browser is not None
             return self._open(self._browser, clean_url, profile, None)
