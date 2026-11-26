@@ -16,6 +16,37 @@ lagi sebagai pengunjung dari Google (cloaking) dan HP → **server** menyimpan l
 
 ## 2. API deteksi + Chromium
 
+### Dengan Docker (disarankan, dipakai di Coolify)
+
+`Dockerfile.api` sudah berisi Python, Chromium headless, dan Tesseract (+ bahasa Indonesia),
+memakai `requirements-api.txt` (tanpa torch/transformers dan alat dev), dan berjalan sebagai
+user non-root dengan healthcheck `/health`. Ukuran image ±2 GB; memori ±220 MB setelah satu
+pemindaian, naik saat halaman berat dibuka.
+
+```bash
+docker build -f Dockerfile.api -t gamblewatch-api .
+docker run -p 8001:8001 -e DETECTION_API_KEY=... -e ALLOWED_ORIGINS=https://... gamblewatch-api
+```
+
+Di Coolify:
+
+1. **+ New → Public Git Repository**, repo ini, branch `main`, build pack **Dockerfile**,
+   Dockerfile location `/Dockerfile.api`, port `8001`.
+2. **Hapus domain** yang dibuat otomatis: API hanya dipanggil Next.js lewat jaringan internal.
+3. Environment API: `DETECTION_API_KEY`, `ALLOWED_ORIGINS`, dan opsional `SUPABASE_URL` +
+   `SUPABASE_KEY` (kunci **anon**, untuk membaca tabel `keywords`; tanpa ini dipakai
+   `data/keywords.json`). Jangan beri container ini `SUPABASE_SERVICE_ROLE_KEY`.
+4. Deploy, tunggu status healthy, salin **Internal hostname**.
+5. Environment website (Runtime): `DETECTION_API_URL=http://<internal-hostname>:8001`,
+   `DETECTION_API_KEY` yang sama, dan `SUPABASE_SERVICE_ROLE_KEY` (lihat bagian 6). Redeploy.
+6. Uji: form analisis dengan `https://example.com` harus menghasilkan risiko rendah.
+
+Catatan: di Coolify container berada di jaringan Docker yang sama dengan Supabase, jadi blokir
+alamat privat di level aplikasi (`safety.py`) adalah satu-satunya lapisan, kecuali aturan
+iptables di bagian 3 dipasang oleh pengelola server.
+
+### Tanpa Docker
+
 ```bash
 pip install -r requirements.txt
 python -m playwright install --with-deps chromium

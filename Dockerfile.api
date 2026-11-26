@@ -1,0 +1,46 @@
+# API deteksi GambleWatch (FastAPI + scraper Playwright + Tesseract OCR), port 8001.
+#
+#   docker build -f Dockerfile.api -t gamblewatch-api .
+#   docker run -p 8001:8001 -e DETECTION_API_KEY=... gamblewatch-api
+#
+# Environment variable:
+#   DETECTION_API_KEY  wajib di server; website mengirim kunci yang sama (X-API-Key)
+#   ALLOWED_ORIGINS    asal CORS, mis. https://gamblewatch.caiis.ai.id
+#   SUPABASE_URL, SUPABASE_KEY  opsional: kata kunci diambil dari database,
+#                      tanpa ini dipakai data/keywords.json
+
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    GAMBLEWATCH_NO_ENV_FILE=1
+
+# Tesseract OCR + bahasa Indonesia (DET-03)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ind tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-api.txt .
+RUN pip install -r requirements-api.txt \
+    # Chromium headless untuk scraper, beserta library sistem yang dibutuhkannya
+    && playwright install --with-deps --only-shell chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY detection_engine ./detection_engine
+COPY data/keywords.json data/reference_index.npz ./data/
+
+# Jalankan sebagai user biasa, bukan root
+RUN useradd --create-home --uid 1001 api && chown -R api:api /app
+USER api
+
+EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=4)"
+
+# Satu worker: scraper memakai satu Chromium dan mengantrekan pemindaian
+CMD ["uvicorn", "detection_engine.api.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
